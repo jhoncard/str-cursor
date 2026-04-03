@@ -2,8 +2,9 @@
 
 import { db } from "@/lib/db";
 import { bookings, guests, availability, properties } from "@/lib/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { propertiesData } from "@/data/properties";
+import { eachStayNight, isStayAvailable } from "@/lib/availability";
 import { sendEmail } from "@/lib/email";
 import { BookingConfirmationEmail } from "@/lib/email/templates/booking-confirmation";
 import { HostNotificationEmail } from "@/lib/email/templates/host-notification";
@@ -40,17 +41,7 @@ export async function createBooking(data: BookingData) {
       return { success: false, error: `Guest count must be between 1 and ${property.maxGuests} for this property.` };
     }
 
-    // 1. Check availability
-    const existingBookings = await db.query.availability.findMany({
-      where: and(
-        eq(availability.propertyId, data.propertyId),
-        gte(availability.date, data.checkIn),
-        lte(availability.date, data.checkOut),
-        eq(availability.status, 'booked')
-      )
-    });
-
-    if (existingBookings.length > 0) {
+    if (!(await isStayAvailable(data.propertyId, data.checkIn, data.checkOut))) {
       return { success: false, error: "Dates are no longer available." };
     }
 
@@ -91,15 +82,25 @@ export async function createBooking(data: BookingData) {
       source: 'direct',
     }).returning({ id: bookings.id, confirmationCode: bookings.confirmationCode });
 
-    // 4. Update Availability
-    // (Ideally we would insert rows for each date between checkIn and checkOut as 'booked')
-    // For MVP, we simply insert a record for the checkIn date to block it
-    await db.insert(availability).values({
-      propertyId: data.propertyId,
-      date: data.checkIn,
-      status: 'booked',
-      source: 'direct',
-    });
+    const nights = eachStayNight(data.checkIn, data.checkOut);
+    for (const night of nights) {
+      await db
+        .insert(availability)
+        .values({
+          propertyId: data.propertyId,
+          date: night,
+          status: "booked",
+          source: "direct",
+        })
+        .onConflictDoUpdate({
+          target: [availability.propertyId, availability.date],
+          set: {
+            status: "booked",
+            source: "direct",
+            updatedAt: new Date(),
+          },
+        });
+    }
 
     return { success: true, bookingId: newBooking.id, confirmationCode: newBooking.confirmationCode };
   } catch (error) {
@@ -145,16 +146,7 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
       return { success: false, error: `Guest count must be between 1 and ${dbProperty.maxGuests}.` };
     }
 
-    const existingBookings = await db.query.availability.findMany({
-      where: and(
-        eq(availability.propertyId, dbProperty.id),
-        gte(availability.date, payload.checkIn),
-        lte(availability.date, payload.checkOut),
-        eq(availability.status, "booked")
-      ),
-    });
-
-    if (existingBookings.length > 0) {
+    if (!(await isStayAvailable(dbProperty.id, payload.checkIn, payload.checkOut))) {
       return { success: false, error: "Dates are no longer available." };
     }
 
@@ -202,22 +194,25 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
       })
       .returning({ id: bookings.id, confirmationCode: bookings.confirmationCode });
 
-    await db
-      .insert(availability)
-      .values({
-        propertyId: dbProperty.id,
-        date: payload.checkIn,
-        status: "booked",
-        source: "direct",
-      })
-      .onConflictDoUpdate({
-        target: [availability.propertyId, availability.date],
-        set: {
+    const stayNights = eachStayNight(payload.checkIn, payload.checkOut);
+    for (const night of stayNights) {
+      await db
+        .insert(availability)
+        .values({
+          propertyId: dbProperty.id,
+          date: night,
           status: "booked",
           source: "direct",
-          updatedAt: new Date(),
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: [availability.propertyId, availability.date],
+          set: {
+            status: "booked",
+            source: "direct",
+            updatedAt: new Date(),
+          },
+        });
+    }
 
     try {
       const hostEmail = process.env.HOST_EMAIL ?? "host@feathershouses.com";

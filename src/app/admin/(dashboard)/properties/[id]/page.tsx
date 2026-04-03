@@ -8,6 +8,10 @@ import {
   addPropertyImage,
   deletePropertyImage,
   uploadPropertyImageFile,
+  addPropertyIcalFeed,
+  deletePropertyIcalFeed,
+  syncPropertyIcalFeedNow,
+  regeneratePropertyIcalExportToken,
 } from "../../../actions";
 import {
   Save,
@@ -20,17 +24,30 @@ import {
   CheckCircle2,
   AlertCircle,
   Upload,
+  Calendar,
+  Copy,
+  RefreshCw,
+  Link2,
 } from "lucide-react";
 import Link from "next/link";
 
 type PropertyData = {
   id: string;
+  slug: string;
   name: string;
   description: string;
   short_description: string;
   base_price_night: number;
   max_guests: number;
   status: string;
+  ical_export_token: string;
+};
+
+type IcalFeedRow = {
+  id: string;
+  feed_url: string;
+  source: string;
+  last_sync_at: string | null;
 };
 
 type PropertyImage = {
@@ -64,15 +81,42 @@ export default function PropertyEditorPage() {
   const [addingImage, setAddingImage] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
 
+  const [icalFeeds, setIcalFeeds] = useState<IcalFeedRow[]>([]);
+  const [newFeedUrl, setNewFeedUrl] = useState("");
+  const [newFeedSource, setNewFeedSource] = useState("airbnb");
+  const [icalBusy, setIcalBusy] = useState<string | null>(null);
+  const [icalLoadError, setIcalLoadError] = useState<string | null>(null);
+
   const showToast = useCallback((type: Toast["type"], message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
   }, []);
 
+  async function reloadIcalFeeds() {
+    const { data, error } = await supabase
+      .from("property_ical_feeds")
+      .select("id, feed_url, source, last_sync_at")
+      .eq("property_id", id)
+      .order("created_at");
+    if (error) {
+      setIcalLoadError(error.message);
+      showToast("error", `Could not load iCalendars: ${error.message}`);
+      return;
+    }
+    setIcalLoadError(null);
+    setIcalFeeds(data ?? []);
+  }
+
   useEffect(() => {
     async function load() {
       const [propRes, imgRes] = await Promise.all([
-        supabase.from("properties").select("*").eq("id", id).single(),
+        supabase
+          .from("properties")
+          .select(
+            "id, slug, name, description, short_description, base_price_night, max_guests, status, ical_export_token"
+          )
+          .eq("id", id)
+          .single(),
         supabase
           .from("property_images")
           .select("*")
@@ -86,16 +130,36 @@ export default function PropertyEditorPage() {
         return;
       }
 
+      const token =
+        typeof propRes.data.ical_export_token === "string"
+          ? propRes.data.ical_export_token
+          : "";
+
       setProperty({
         id: propRes.data.id,
+        slug: propRes.data.slug,
         name: propRes.data.name,
         description: propRes.data.description ?? "",
         short_description: propRes.data.short_description ?? "",
         base_price_night: propRes.data.base_price_night,
         max_guests: propRes.data.max_guests,
         status: propRes.data.status,
+        ical_export_token: token,
       });
       setImages(imgRes.data ?? []);
+
+      const { data: feeds, error: feedsError } = await supabase
+        .from("property_ical_feeds")
+        .select("id, feed_url, source, last_sync_at")
+        .eq("property_id", id)
+        .order("created_at");
+      if (feedsError) {
+        setIcalLoadError(feedsError.message);
+        showToast("error", `Could not load iCalendars: ${feedsError.message}`);
+      } else {
+        setIcalLoadError(null);
+      }
+      setIcalFeeds(feeds ?? []);
       setLoading(false);
     }
     load();
@@ -186,6 +250,84 @@ export default function PropertyEditorPage() {
     value: PropertyData[K]
   ) {
     setProperty((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  const exportIcsAbsoluteUrl =
+    typeof window !== "undefined" && property?.ical_export_token
+      ? `${window.location.origin}/api/ical/export/${property.ical_export_token}/calendar.ics`
+      : process.env.NEXT_PUBLIC_APP_URL && property?.ical_export_token
+        ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/api/ical/export/${property.ical_export_token}/calendar.ics`
+        : "";
+
+  async function handleCopyExportUrl() {
+    const url = exportIcsAbsoluteUrl;
+    if (!url) {
+      showToast("error", "Set NEXT_PUBLIC_APP_URL for a full link, or copy from a deployed site.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("success", "Calendar link copied — paste into Airbnb or VRBO (iCal / sync).");
+    } catch {
+      showToast("error", "Could not copy. Copy the link manually.");
+    }
+  }
+
+  async function handleRegenerateExportToken() {
+    if (!property) return;
+    if (!confirm("Regenerate the export link? You must update Airbnb/VRBO with the new URL.")) return;
+    setIcalBusy("regen");
+    try {
+      const { icalExportToken } = await regeneratePropertyIcalExportToken(property.id);
+      setProperty((p) => (p ? { ...p, ical_export_token: icalExportToken } : p));
+      showToast("success", "New export link generated.");
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Failed");
+    } finally {
+      setIcalBusy(null);
+    }
+  }
+
+  async function handleAddIcalFeed() {
+    if (!property || !newFeedUrl.trim()) return;
+    setIcalBusy("add");
+    try {
+      await addPropertyIcalFeed(property.id, newFeedUrl.trim(), newFeedSource);
+      setNewFeedUrl("");
+      await reloadIcalFeeds();
+      showToast("success", "Calendar added and synced.");
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Failed to add feed");
+    } finally {
+      setIcalBusy(null);
+    }
+  }
+
+  async function handleDeleteFeed(feedId: string) {
+    if (!confirm("Remove this imported calendar? Blocked nights from it will be cleared.")) return;
+    setIcalBusy(feedId);
+    try {
+      await deletePropertyIcalFeed(feedId);
+      await reloadIcalFeeds();
+      showToast("success", "Calendar removed.");
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Failed");
+    } finally {
+      setIcalBusy(null);
+    }
+  }
+
+  async function handleSyncFeed(feedId: string) {
+    setIcalBusy(feedId);
+    try {
+      const { nightsBlocked } = await syncPropertyIcalFeedNow(feedId);
+      await reloadIcalFeeds();
+      showToast("success", `Synced — ${nightsBlocked} blocked night(s) from this feed.`);
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setIcalBusy(null);
+    }
   }
 
   if (loading) {
@@ -283,6 +425,171 @@ export default function PropertyEditorPage() {
                 rows={8}
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20 focus:border-[#2b2b36]/30 transition-all resize-y"
               />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-gray-50 text-[#2b2b36]">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-semibold text-[#2b2b36]">
+                  iCalendar sync
+                </h2>
+                <p className="text-sm text-[#2b2b36]/50 mt-1">
+                  Import busy nights from Airbnb, VRBO, or any iCal URL. Updates run
+                  automatically every 15 minutes when{" "}
+                  <code className="text-xs bg-gray-100 px-1 rounded">CRON_SECRET</code>{" "}
+                  Authorization is configured on Vercel. Guests cannot book blocked
+                  nights.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/80 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-[#2b2b36]">
+                <Link2 className="w-4 h-4" />
+                Export for Airbnb / VRBO
+              </div>
+              <p className="text-xs text-[#2b2b36]/55">
+                Paste this URL into the other platform so they pull{" "}
+                <strong>direct bookings</strong> from this site and close those dates
+                there.
+              </p>
+              {property.ical_export_token ? (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      readOnly
+                      value={exportIcsAbsoluteUrl || "/api/ical/export/…/calendar.ics"}
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs font-mono text-[#2b2b36]/80"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyExportUrl}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium bg-[#2b2b36] text-white hover:bg-[#2b2b36]/90"
+                      >
+                        <Copy className="w-4 h-4" />
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        disabled={icalBusy === "regen"}
+                        onClick={handleRegenerateExportToken}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border border-gray-200 bg-white text-[#2b2b36] hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {icalBusy === "regen" ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                        New link
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#2b2b36]">Import calendars</p>
+                <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-[#2b2b36]/70">
+                  Added: {icalFeeds.length}
+                </span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="url"
+                  placeholder="https://…/calendar.ics"
+                  value={newFeedUrl}
+                  onChange={(e) => setNewFeedUrl(e.target.value)}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm bg-white"
+                />
+                <select
+                  value={newFeedSource}
+                  onChange={(e) => setNewFeedSource(e.target.value)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm bg-white"
+                >
+                  <option value="airbnb">Airbnb</option>
+                  <option value="vrbo">VRBO</option>
+                  <option value="booking_com">Booking.com</option>
+                  <option value="other">Other</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={icalBusy === "add" || !newFeedUrl.trim()}
+                  onClick={handleAddIcalFeed}
+                  className="px-4 py-2.5 rounded-xl text-sm font-medium bg-[#2b2b36] text-white hover:bg-[#2b2b36]/90 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {icalBusy === "add" ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  Add
+                </button>
+              </div>
+              {icalLoadError ? (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  Could not load existing iCalendars: {icalLoadError}
+                </p>
+              ) : null}
+
+              {icalFeeds.length === 0 ? (
+                <p className="text-sm text-[#2b2b36]/40 py-4 text-center border border-dashed border-gray-200 rounded-xl">
+                  No imported calendars yet.
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+                  {icalFeeds.map((f) => (
+                    <li
+                      key={f.id}
+                      className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-white text-sm"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[#2b2b36] capitalize">
+                          {f.source.replace(/_/g, " ")}
+                        </p>
+                        <p className="text-xs text-[#2b2b36]/50 truncate font-mono">
+                          {f.feed_url}
+                        </p>
+                        <p className="text-[10px] text-[#2b2b36]/40 mt-0.5">
+                          Last sync:{" "}
+                          {f.last_sync_at
+                            ? new Date(f.last_sync_at).toLocaleString()
+                            : "—"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={icalBusy === f.id}
+                          onClick={() => handleSyncFeed(f.id)}
+                          className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-[#2b2b36] disabled:opacity-50"
+                          title="Sync now"
+                        >
+                          {icalBusy === f.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFeed(f.id)}
+                          className="p-2 rounded-lg border border-gray-200 text-red-600 hover:bg-red-50"
+                          title="Remove"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 

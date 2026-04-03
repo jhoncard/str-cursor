@@ -15,6 +15,8 @@ interface PropertyDetailBookingCardProps {
   cleaningFee: number;
   serviceFee: number;
   maxGuests: number;
+  /** yyyy-MM-dd nights unavailable (booked / iCal import / manual block). */
+  blockedDateStrings?: string[];
 }
 
 export function PropertyDetailBookingCard({
@@ -23,6 +25,7 @@ export function PropertyDetailBookingCard({
   cleaningFee,
   serviceFee,
   maxGuests,
+  blockedDateStrings = [],
 }: PropertyDetailBookingCardProps) {
   const router = useRouter();
   const [date, setDate] = useState<DateRange | undefined>({
@@ -30,6 +33,11 @@ export function PropertyDetailBookingCard({
     to: undefined,
   });
   const [guests, setGuests] = useState(1);
+
+  const blockedSet = useMemo(
+    () => new Set(blockedDateStrings),
+    [blockedDateStrings]
+  );
 
   const nights = useMemo(() => {
     if (!date?.from || !date?.to) return 5;
@@ -97,7 +105,10 @@ export function PropertyDetailBookingCard({
               selected={date}
               onSelect={setDate}
               numberOfMonths={2}
-              disabled={(day) => day < addDays(new Date(), -1)}
+              disabled={(day) => {
+                if (day < addDays(new Date(), -1)) return true;
+                return blockedSet.has(format(day, "yyyy-MM-dd"));
+              }}
             />
           </PopoverContent>
         </Popover>

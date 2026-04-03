@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { propertiesData } from "@/data/properties";
 import { getStripe } from "@/lib/stripe";
+import { isStayAvailable } from "@/lib/availability";
 
 interface CheckoutPayload {
   slug: string;
@@ -42,6 +43,13 @@ export async function POST(request: NextRequest) {
       1,
       Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24))
     );
+
+    if (!(await isStayAvailable(property.id, body.checkIn, body.checkOut))) {
+      return NextResponse.json(
+        { error: "Those dates are not available. They may be booked on another channel. Choose different dates." },
+        { status: 409 }
+      );
+    }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
     const stripe = getStripe();

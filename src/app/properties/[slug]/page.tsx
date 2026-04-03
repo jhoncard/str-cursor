@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { addYears, format } from "date-fns";
 import { propertiesData } from "@/data/properties";
+import { getBlockedDates } from "@/lib/availability";
 import { Header } from "@/components/layout/header";
 import { MapPin, Users, BedDouble, Bath, CheckCircle2, Star, Share, Heart } from "lucide-react";
 
@@ -43,6 +45,11 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
   if (!property) {
     notFound();
   }
+
+  const rangeStart = new Date();
+  const rangeEnd = addYears(rangeStart, 2);
+  const blockedDates = await getBlockedDates(property.id, rangeStart, rangeEnd);
+  const blockedDateStrings = blockedDates.map((d) => format(d, "yyyy-MM-dd"));
 
   return (
     <div className="min-h-screen bg-[#f4f6f8] font-sans pb-24">
@@ -181,6 +188,7 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
                 cleaningFee={property.cleaningFee}
                 serviceFee={property.serviceFee}
                 maxGuests={property.maxGuests}
+                blockedDateStrings={blockedDateStrings}
               />
             </div>
           </div>

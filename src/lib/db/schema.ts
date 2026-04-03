@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, varchar, integer, numeric, boolean, uuid, date, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, varchar, integer, numeric, boolean, uuid, date, pgEnum, primaryKey } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -31,6 +31,8 @@ export const properties = pgTable('properties', {
   cleaningFee: numeric('cleaning_fee').default('0'),
   petFee: numeric('pet_fee').default('0'),
   status: propertyStatusEnum('status').default('active').notNull(),
+  /** Secret token for public `.ics` export URL (Airbnb / VRBO import). */
+  icalExportToken: uuid('ical_export_token').notNull().defaultRandom(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -59,15 +61,30 @@ export const availability = pgTable('availability', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Property iCal Feeds Table
+// Property iCal Feeds Table (import from Airbnb / VRBO / etc.)
 export const propertyIcalFeeds = pgTable('property_ical_feeds', {
   id: uuid('id').defaultRandom().primaryKey(),
-  propertyId: uuid('property_id').references(() => properties.id).notNull(),
+  propertyId: uuid('property_id').references(() => properties.id, { onDelete: 'cascade' }).notNull(),
   feedUrl: text('feed_url').notNull(),
   source: varchar('source', { length: 50 }).notNull(),
   lastSyncAt: timestamp('last_sync_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// Blocked nights imported from a specific iCal feed (one row per feed per night).
+export const propertyIcalBlockedDates = pgTable(
+  'property_ical_blocked_dates',
+  {
+    icalFeedId: uuid('ical_feed_id')
+      .notNull()
+      .references(() => propertyIcalFeeds.id, { onDelete: 'cascade' }),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => properties.id, { onDelete: 'cascade' }),
+    blockedDate: date('blocked_date').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.icalFeedId, t.blockedDate] })]
+);
 
 // Guests Table
 export const guests = pgTable('guests', {
@@ -152,9 +169,21 @@ export const bookingsRelations = relations(bookings, ({ one }) => ({
   }),
 }));
 
-export const propertyIcalFeedsRelations = relations(propertyIcalFeeds, ({ one }) => ({
+export const propertyIcalFeedsRelations = relations(propertyIcalFeeds, ({ one, many }) => ({
   property: one(properties, {
     fields: [propertyIcalFeeds.propertyId],
+    references: [properties.id],
+  }),
+  blockedDates: many(propertyIcalBlockedDates),
+}));
+
+export const propertyIcalBlockedDatesRelations = relations(propertyIcalBlockedDates, ({ one }) => ({
+  feed: one(propertyIcalFeeds, {
+    fields: [propertyIcalBlockedDates.icalFeedId],
+    references: [propertyIcalFeeds.id],
+  }),
+  property: one(properties, {
+    fields: [propertyIcalBlockedDates.propertyId],
     references: [properties.id],
   }),
 }));

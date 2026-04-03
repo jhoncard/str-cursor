@@ -1,5 +1,10 @@
+import "server-only";
+
 import { createClient } from "@supabase/supabase-js";
-import { randomUUID } from "crypto";
+
+function newUuid(): string {
+  return globalThis.crypto.randomUUID();
+}
 
 export const PROPERTY_IMAGES_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_PROPERTY_IMAGES_BUCKET ?? "property-images";
@@ -15,7 +20,7 @@ export function buildPropertyImageStoragePath(
   propertyId: string,
   fileName: string
 ): string {
-  return `${propertyId}/${randomUUID()}-${sanitizeImageFileName(fileName)}`;
+  return `${propertyId}/${newUuid()}-${sanitizeImageFileName(fileName)}`;
 }
 
 export function assertImagePropertyImage(file: File) {
