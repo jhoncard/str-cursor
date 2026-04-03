@@ -1,5 +1,4 @@
-import { X, Heart, MapPin, CheckCircle2, Phone } from "lucide-react";
-import Image from "next/image";
+import { X, Heart, CheckCircle2, Phone } from "lucide-react";
 
 export function PropertyModal() {
   return (
@@ -80,7 +79,7 @@ export function PropertyModal() {
                   <CheckCircle2 className="w-4 h-4 text-white/50" /> 7 free travel days every year
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-white/50" /> Renter's Insurance included
+                  <CheckCircle2 className="w-4 h-4 text-white/50" /> Renter&apos;s Insurance included
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-white/50" /> No service fee

@@ -23,14 +23,12 @@ export default async function WebhookLogsPage() {
   });
 
   const sessions = events.data
-    .map((event) => event.data.object)
-    .filter(
-      (obj): obj is {
-        id: string;
-        payment_intent: string | null;
-        metadata?: Record<string, string>;
-      } => obj && typeof obj === "object" && "id" in obj
-    );
+    .map((event) => event.data.object as unknown as {
+      id: string;
+      payment_intent: string | null;
+      metadata?: Record<string, string>;
+    })
+    .filter((obj) => obj && typeof obj === "object" && "id" in obj);
 
   const paymentIntentIds = sessions
     .map((session) =>

@@ -9,6 +9,7 @@ export const availabilityStatusEnum = pgEnum('availability_status', ['available'
 export const bookingSourceEnum = pgEnum('booking_source', ['direct', 'airbnb', 'vrbo', 'booking_com', 'manual']);
 export const bookingPaymentStatusEnum = pgEnum('payment_status', ['pending', 'paid', 'refunded', 'partial_refund']);
 export const bookingStatusEnum = pgEnum('booking_status', ['confirmed', 'cancelled', 'completed', 'no_show']);
+export const userRoleEnum = pgEnum('user_role', ['guest', 'admin']);
 
 // Properties Table
 export const properties = pgTable('properties', {
@@ -58,6 +59,16 @@ export const availability = pgTable('availability', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// Property iCal Feeds Table
+export const propertyIcalFeeds = pgTable('property_ical_feeds', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  propertyId: uuid('property_id').references(() => properties.id).notNull(),
+  feedUrl: text('feed_url').notNull(),
+  source: varchar('source', { length: 50 }).notNull(),
+  lastSyncAt: timestamp('last_sync_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Guests Table
 export const guests = pgTable('guests', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -65,6 +76,17 @@ export const guests = pgTable('guests', {
   lastName: varchar('last_name', { length: 120 }).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   phone: varchar('phone', { length: 50 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Profiles Table
+export const profiles = pgTable('profiles', {
+  id: uuid('id').primaryKey(),
+  email: text('email'),
+  fullName: text('full_name'),
+  avatarUrl: text('avatar_url'),
+  role: userRoleEnum('role').default('guest').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -98,6 +120,7 @@ export const propertiesRelations = relations(properties, ({ many }) => ({
   images: many(propertyImages),
   availability: many(availability),
   bookings: many(bookings),
+  icalFeeds: many(propertyIcalFeeds),
 }));
 
 export const propertyImagesRelations = relations(propertyImages, ({ one }) => ({
@@ -126,5 +149,12 @@ export const bookingsRelations = relations(bookings, ({ one }) => ({
   guest: one(guests, {
     fields: [bookings.guestId],
     references: [guests.id],
+  }),
+}));
+
+export const propertyIcalFeedsRelations = relations(propertyIcalFeeds, ({ one }) => ({
+  property: one(properties, {
+    fields: [propertyIcalFeeds.propertyId],
+    references: [properties.id],
   }),
 }));

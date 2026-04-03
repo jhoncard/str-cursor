@@ -1,10 +1,40 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { propertiesData } from "@/data/properties";
 import { Header } from "@/components/layout/header";
 import { MapPin, Users, BedDouble, Bath, CheckCircle2, Star, Share, Heart } from "lucide-react";
-import Image from "next/image";
 
 import { PropertyDetailBookingCard } from "@/components/property/property-detail-booking-card";
+import { ImageGallery } from "@/components/property/image-gallery";
+import { PropertyReviews } from "@/components/property/property-reviews";
+import { HostCard } from "@/components/property/host-card";
+import { SimilarProperties } from "@/components/property/similar-properties";
+import { PropertyFaq } from "@/components/property/property-faq";
+import { MobileBookingBar } from "@/components/property/mobile-booking-bar";
+import { VacationRentalJsonLd, BreadcrumbJsonLd } from "@/components/seo/json-ld";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const property = propertiesData.find((p) => p.slug === slug);
+
+  if (!property) {
+    return { title: "Property Not Found" };
+  }
+
+  return {
+    title: property.name,
+    description: property.shortDescription,
+    openGraph: {
+      title: `${property.name} | Feathers Houses`,
+      description: property.shortDescription,
+      images: property.images[0] ? [{ url: property.images[0] }] : [],
+    },
+  };
+}
 
 export default async function PropertyDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -16,11 +46,18 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="min-h-screen bg-[#f4f6f8] font-sans pb-24">
+      <VacationRentalJsonLd property={property} />
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", href: "/" },
+          { name: "Properties", href: "/properties" },
+          { name: property.name, href: `/properties/${property.slug}` },
+        ]}
+      />
       <Header />
 
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-12 mt-2">
         
-        {/* Title and Quick Actions */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-[#2b2b36] tracking-tight">
@@ -49,33 +86,12 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
           </div>
         </div>
 
-        {/* Images Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-[400px] sm:h-[500px] lg:h-[600px] rounded-[2rem] overflow-hidden">
-          <div className="md:col-span-2 relative h-full bg-gray-200">
-            <Image 
-              src={property.images[0]} 
-              alt={property.name} 
-              fill 
-              className="object-cover" 
-              priority
-            />
-          </div>
-          <div className="hidden md:grid md:col-span-2 grid-cols-2 grid-rows-2 gap-4 h-full">
-            {/* If the array doesn't have 5 images, repeat or handle gracefully */}
-            <div className="relative bg-gray-200"><Image src={property.images[1] || property.images[0]} alt="Room" fill className="object-cover" /></div>
-            <div className="relative bg-gray-200"><Image src={property.images[0]} alt="Room" fill className="object-cover" /></div>
-            <div className="relative bg-gray-200"><Image src={property.images[1] || property.images[0]} alt="Room" fill className="object-cover" /></div>
-            <div className="relative bg-gray-200"><Image src={property.images[0]} alt="Room" fill className="object-cover" /></div>
-          </div>
-        </div>
+        <ImageGallery images={property.images} propertyName={property.name} />
 
-        {/* Content Split */}
         <div className="flex flex-col lg:flex-row gap-12 mt-12 relative">
           
-          {/* Left Column (Details) */}
           <div className="flex-1 flex flex-col gap-10">
             
-            {/* Quick Specs */}
             <div className="flex flex-wrap items-center gap-6 pb-8 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-white rounded-full shadow-sm"><Users className="w-5 h-5 text-[#2b2b36]" /></div>
@@ -100,7 +116,6 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
               </div>
             </div>
 
-            {/* Description */}
             <div>
               <h2 className="text-2xl font-semibold text-[#2b2b36] mb-4">About this home</h2>
               <p className="text-gray-600 leading-relaxed max-w-3xl">
@@ -110,7 +125,6 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
               </p>
             </div>
 
-            {/* Amenities */}
             <div>
               <h2 className="text-2xl font-semibold text-[#2b2b36] mb-6">What this place offers</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-8 text-gray-600 font-medium">
@@ -122,7 +136,6 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
               </div>
             </div>
 
-            {/* Airbnb-style Rules */}
             <div>
               <h2 className="text-2xl font-semibold text-[#2b2b36] mb-4">House rules</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-gray-600">
@@ -148,21 +161,39 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
                 </div>
               </div>
             </div>
+
+            <PropertyReviews
+              rating={property.rating}
+              reviewCount={property.reviewCount}
+            />
+
+            <HostCard
+              hostName={property.hostName}
+              isSuperhost={property.isSuperhost}
+            />
           </div>
 
-          {/* Right Column (Sticky Booking Widget) */}
           <div className="w-full lg:w-[400px]">
-            <PropertyDetailBookingCard
-              slug={property.slug}
-              basePriceNight={property.basePriceNight}
-              cleaningFee={property.cleaningFee}
-              serviceFee={property.serviceFee}
-              maxGuests={property.maxGuests}
-            />
+            <div id="booking-card">
+              <PropertyDetailBookingCard
+                slug={property.slug}
+                basePriceNight={property.basePriceNight}
+                cleaningFee={property.cleaningFee}
+                serviceFee={property.serviceFee}
+                maxGuests={property.maxGuests}
+              />
+            </div>
           </div>
           
         </div>
+
+        <div className="mt-16 flex flex-col gap-16">
+          <PropertyFaq />
+          <SimilarProperties currentSlug={property.slug} />
+        </div>
       </main>
+
+      <MobileBookingBar basePriceNight={property.basePriceNight} />
     </div>
   );
 }

@@ -1,10 +1,16 @@
 import { Header } from "@/components/layout/header";
 import { SearchForm } from "@/components/home/search-form";
 import { OtaBanner } from "@/components/home/ota-banner";
+import { ValueProps } from "@/components/home/value-props";
+import { ReviewsCarousel } from "@/components/home/reviews-carousel";
+import { TrustSignals } from "@/components/home/trust-signals";
+import { WhyBookDirect } from "@/components/home/why-book-direct";
+import { LodgingBusinessJsonLd } from "@/components/seo/json-ld";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#f4f6f8] font-sans pb-12">
+      <LodgingBusinessJsonLd />
       <Header />
 
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-12 mt-2">
@@ -44,7 +50,11 @@ export default function Home() {
            <SearchForm />
         </div>
 
+        <ValueProps />
         <OtaBanner />
+        <ReviewsCarousel />
+        <TrustSignals />
+        <WhyBookDirect />
 
       </main>
     </div>

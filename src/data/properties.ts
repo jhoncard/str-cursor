@@ -150,7 +150,6 @@ export const propertiesData: Property[] = [
     cleaningFee: 180,
     serviceFee: 95,
     checkInFrom: "4:00 PM",
-    checkOutBy: "11:00 AM",
     checkOutBy: "10:00 AM",
     cancellationPolicy: "Add your trip dates to get the cancellation details for this stay.",
     amenities: ["Kitchen", "Wifi", "Dedicated workspace", "Free parking on premises", "Pool", "Hot tub", "Pets allowed", "Washer", "Dryer"],

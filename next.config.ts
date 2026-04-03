@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Admin property image upload uses a Server Action + FormData (default limit is 1 MB).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "12mb",
+    },
+  },
 };
 
 export default nextConfig;

@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { bookings, guests, availability, properties } from "@/lib/db/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { propertiesData } from "@/data/properties";
+import { sendEmail } from "@/lib/email";
+import { BookingConfirmationEmail } from "@/lib/email/templates/booking-confirmation";
+import { HostNotificationEmail } from "@/lib/email/templates/host-notification";
 
 interface BookingData {
   propertyId: string;
@@ -131,7 +134,7 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
 
     const dbProperty = await db.query.properties.findFirst({
       where: eq(properties.slug, payload.propertySlug),
-      columns: { id: true, maxGuests: true },
+      columns: { id: true, name: true, maxGuests: true },
     });
 
     if (!dbProperty) {
@@ -215,6 +218,43 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
           updatedAt: new Date(),
         },
       });
+
+    try {
+      const hostEmail = process.env.HOST_EMAIL ?? "host@feathershouses.com";
+      const propertyName = dbProperty.name;
+
+      await Promise.all([
+        sendEmail({
+          to: payload.email,
+          subject: `Booking Confirmed - ${propertyName} (${newBooking.confirmationCode})`,
+          body: BookingConfirmationEmail({
+            guestFirstName: payload.firstName,
+            propertyName,
+            checkIn: payload.checkIn,
+            checkOut: payload.checkOut,
+            confirmationCode: newBooking.confirmationCode,
+            totalAmount: payload.totalAmount.toFixed(2),
+          }),
+        }),
+        sendEmail({
+          to: hostEmail,
+          subject: `New Booking: ${propertyName} - ${newBooking.confirmationCode}`,
+          body: HostNotificationEmail({
+            guestName: `${payload.firstName} ${payload.lastName}`,
+            guestEmail: payload.email,
+            guestPhone: payload.phone,
+            propertyName,
+            checkIn: payload.checkIn,
+            checkOut: payload.checkOut,
+            numGuests: payload.numGuests,
+            totalAmount: payload.totalAmount.toFixed(2),
+            confirmationCode: newBooking.confirmationCode,
+          }),
+        }),
+      ]);
+    } catch (emailError) {
+      console.error("Failed to send booking emails:", emailError);
+    }
 
     return { success: true, bookingId: newBooking.id, confirmationCode: newBooking.confirmationCode, alreadyExists: false };
   } catch (error) {

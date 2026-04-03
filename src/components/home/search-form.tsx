@@ -2,12 +2,9 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, ChevronDown, MapPin, Minus, Plus, Users } from "lucide-react";
+import { ChevronDown, MapPin, Minus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,

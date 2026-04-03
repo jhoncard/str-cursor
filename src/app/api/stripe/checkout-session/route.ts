@@ -12,6 +12,8 @@ interface CheckoutPayload {
   checkIn: string;
   checkOut: string;
   numGuests: number;
+  specialRequests?: string;
+  arrivalTime?: string;
 }
 
 function toCurrencyAmount(value: number) {
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         propertySlug: property.slug,
         propertyName: property.name,
+        propertyImage: property.images[0],
         firstName: body.firstName,
         lastName: body.lastName,
         email: body.email,
@@ -90,6 +93,8 @@ export async function POST(request: NextRequest) {
         checkIn: body.checkIn,
         checkOut: body.checkOut,
         numGuests: String(body.numGuests),
+        ...(body.specialRequests ? { specialRequests: body.specialRequests } : {}),
+        ...(body.arrivalTime ? { arrivalTime: body.arrivalTime } : {}),
       },
       success_url: `${baseUrl}/properties/${property.slug}/book/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/properties/${property.slug}/book?checkIn=${body.checkIn}&checkOut=${body.checkOut}&guests=${body.numGuests}`,
