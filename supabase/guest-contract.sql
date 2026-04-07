@@ -1,0 +1,2 @@
+-- Superseded by guest-contract-pdf.sql (rental agreement is a PDF URL, not plain text).
+-- Kept for history; use guest-contract-pdf.sql for new environments.

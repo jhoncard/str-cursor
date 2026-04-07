@@ -8,6 +8,9 @@ import {
   addPropertyImage,
   deletePropertyImage,
   uploadPropertyImageFile,
+  uploadPropertyRentalAgreementPdf,
+  removePropertyRentalAgreementPdf,
+  syncPriceLabsRatesForPropertyAction,
   addPropertyIcalFeed,
   deletePropertyIcalFeed,
   syncPropertyIcalFeedNow,
@@ -28,6 +31,7 @@ import {
   Copy,
   RefreshCw,
   Link2,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -36,6 +40,10 @@ type PropertyData = {
   slug: string;
   name: string;
   description: string;
+  /** Public URL of rental agreement PDF (Supabase Storage), or empty. */
+  guest_contract_pdf_url: string;
+  /** PriceLabs listing ID for dynamic pricing sync. */
+  pricelabs_listing_id: string;
   short_description: string;
   base_price_night: number;
   max_guests: number;
@@ -75,6 +83,9 @@ export default function PropertyEditorPage() {
   const [toast, setToast] = useState<Toast | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rentalPdfInputRef = useRef<HTMLInputElement>(null);
+  const [rentalPdfBusy, setRentalPdfBusy] = useState(false);
+  const [priceLabsSyncing, setPriceLabsSyncing] = useState(false);
   const [showAddImage, setShowAddImage] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [newImageAlt, setNewImageAlt] = useState("");
@@ -113,7 +124,7 @@ export default function PropertyEditorPage() {
         supabase
           .from("properties")
           .select(
-            "id, slug, name, description, short_description, base_price_night, max_guests, status, ical_export_token"
+            "id, slug, name, description, guest_contract_pdf_url, pricelabs_listing_id, short_description, base_price_night, max_guests, status, ical_export_token"
           )
           .eq("id", id)
           .single(),
@@ -140,6 +151,14 @@ export default function PropertyEditorPage() {
         slug: propRes.data.slug,
         name: propRes.data.name,
         description: propRes.data.description ?? "",
+        guest_contract_pdf_url:
+          typeof propRes.data.guest_contract_pdf_url === "string"
+            ? propRes.data.guest_contract_pdf_url
+            : "",
+        pricelabs_listing_id:
+          typeof propRes.data.pricelabs_listing_id === "string"
+            ? propRes.data.pricelabs_listing_id
+            : "",
         short_description: propRes.data.short_description ?? "",
         base_price_night: propRes.data.base_price_night,
         max_guests: propRes.data.max_guests,
@@ -172,6 +191,7 @@ export default function PropertyEditorPage() {
       await updateProperty(property.id, {
         name: property.name,
         description: property.description,
+        pricelabs_listing_id: property.pricelabs_listing_id.trim() || null,
         short_description: property.short_description,
         base_price_night: property.base_price_night,
         max_guests: property.max_guests,
@@ -425,6 +445,160 @@ export default function PropertyEditorPage() {
                 rows={8}
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20 focus:border-[#2b2b36]/30 transition-all resize-y"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#2b2b36]/60 mb-1.5">
+                Rental agreement (PDF)
+              </label>
+              <p className="text-xs text-[#2b2b36]/45 mb-3">
+                Guests see this PDF on the booking page and must accept it before paying.
+                Leave unset if this listing does not need a property-specific agreement
+                (guests still accept house rules and site policies). Max 15MB.
+              </p>
+              {property.guest_contract_pdf_url ? (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80">
+                  <FileText className="w-5 h-5 text-[#2b2b36] shrink-0" />
+                  <a
+                    href={property.guest_contract_pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#2b2b36] font-medium underline truncate flex-1 min-w-0"
+                  >
+                    View current PDF
+                  </a>
+                  <button
+                    type="button"
+                    disabled={rentalPdfBusy}
+                    onClick={async () => {
+                      if (!property || !confirm("Remove the rental agreement PDF?")) return;
+                      setRentalPdfBusy(true);
+                      try {
+                        await removePropertyRentalAgreementPdf(property.id);
+                        setProperty((p) =>
+                          p ? { ...p, guest_contract_pdf_url: "" } : p
+                        );
+                        showToast("success", "Rental agreement removed");
+                      } catch (e) {
+                        showToast(
+                          "error",
+                          e instanceof Error ? e.message : "Failed to remove"
+                        );
+                      } finally {
+                        setRentalPdfBusy(false);
+                      }
+                    }}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium shrink-0 disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-[#2b2b36]/45 mb-3">No PDF uploaded.</p>
+              )}
+              <input
+                ref={rentalPdfInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file || !property) return;
+                  setRentalPdfBusy(true);
+                  try {
+                    const fd = new FormData();
+                    fd.append("propertyId", property.id);
+                    fd.append("file", file);
+                    const result = await uploadPropertyRentalAgreementPdf(fd);
+                    if ("url" in result && typeof result.url === "string") {
+                      setProperty((p) =>
+                        p ? { ...p, guest_contract_pdf_url: result.url } : p
+                      );
+                    }
+                    showToast("success", "Rental agreement PDF uploaded");
+                  } catch (err) {
+                    showToast(
+                      "error",
+                      err instanceof Error ? err.message : "Upload failed"
+                    );
+                  } finally {
+                    setRentalPdfBusy(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                disabled={rentalPdfBusy}
+                onClick={() => rentalPdfInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-[#2b2b36] hover:bg-gray-50 disabled:opacity-50"
+              >
+                {rentalPdfBusy ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {property.guest_contract_pdf_url ? "Replace PDF" : "Upload PDF"}
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#2b2b36]/60 mb-1.5">
+                PriceLabs dynamic pricing
+              </label>
+              <p className="text-xs text-[#2b2b36]/45 mb-2">
+                Paste the listing ID from your PriceLabs dashboard. Server env must include{" "}
+                <code className="text-xs bg-gray-100 px-1 rounded">PRICELABS_API_KEY</code> and{" "}
+                <code className="text-xs bg-gray-100 px-1 rounded">PRICELABS_RATES_PATH_TEMPLATE</code>{" "}
+                (see .env.example). Save, then sync nightly rates into this site.
+              </p>
+              <input
+                type="text"
+                value={property.pricelabs_listing_id}
+                onChange={(e) => updateField("pricelabs_listing_id", e.target.value)}
+                placeholder="PriceLabs listing ID"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20 focus:border-[#2b2b36]/30 transition-all mb-3"
+              />
+              <button
+                type="button"
+                disabled={priceLabsSyncing || !property.pricelabs_listing_id.trim()}
+                onClick={async () => {
+                  if (!property?.pricelabs_listing_id.trim()) {
+                    showToast("error", "Enter a PriceLabs listing ID.");
+                    return;
+                  }
+                  setPriceLabsSyncing(true);
+                  try {
+                    await updateProperty(property.id, {
+                      pricelabs_listing_id: property.pricelabs_listing_id.trim(),
+                    });
+                    const result = await syncPriceLabsRatesForPropertyAction(property.id);
+                    if (result.ok) {
+                      showToast(
+                        "success",
+                        `Synced ${result.nightsUpdated} night price(s) from PriceLabs.`
+                      );
+                    } else {
+                      showToast("error", result.message ?? "Sync failed.");
+                    }
+                  } catch (e) {
+                    showToast(
+                      "error",
+                      e instanceof Error ? e.message : "Sync failed."
+                    );
+                  } finally {
+                    setPriceLabsSyncing(false);
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-[#2b2b36] hover:bg-gray-50 disabled:opacity-50"
+              >
+                {priceLabsSyncing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Sync rates now
+              </button>
             </div>
           </div>
 

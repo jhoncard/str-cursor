@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { propertiesData } from "@/data/properties";
 import Image from "next/image";
@@ -66,7 +66,14 @@ function StepIndicator({ currentStep }: { currentStep: 1 | 2 }) {
   );
 }
 
-export default function BookingForm({ params }: { params: Promise<{ slug: string }> }) {
+export default function BookingForm({
+  params,
+  guestContractPdfUrl,
+}: {
+  params: Promise<{ slug: string }>;
+  /** Public URL of the rental agreement PDF when configured for this property. */
+  guestContractPdfUrl: string | null;
+}) {
   const searchParams = useSearchParams();
   const resolvedParams = use(params);
   const property = propertiesData.find(p => p.slug === resolvedParams.slug);
@@ -88,10 +95,22 @@ export default function BookingForm({ params }: { params: Promise<{ slug: string
   const [agreeHouseRules, setAgreeHouseRules] = useState(false);
   const [agreeCancellation, setAgreeCancellation] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreeGuestContract, setAgreeGuestContract] = useState(false);
 
   const [guestInfoComplete, setGuestInfoComplete] = useState(false);
+  const [priceQuote, setPriceQuote] = useState<{
+    total: number;
+    accommodationSubtotal: number;
+    nights: number;
+  } | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
-  const allPoliciesAccepted = agreeHouseRules && agreeCancellation && agreeTerms;
+  const contractRequired = Boolean(guestContractPdfUrl?.trim());
+  const allPoliciesAccepted =
+    agreeHouseRules &&
+    agreeCancellation &&
+    agreeTerms &&
+    (!contractRequired || agreeGuestContract);
   const currentStep: 1 | 2 = guestInfoComplete ? 2 : 1;
 
   if (!property) {
@@ -101,8 +120,43 @@ export default function BookingForm({ params }: { params: Promise<{ slug: string
   const checkInDate = parseDateOrFallback(checkInParam, "2026-05-01");
   const checkOutDate = parseDateOrFallback(checkOutParam, "2026-05-06");
   const nights = Math.max(1, differenceInCalendarDays(checkOutDate, checkInDate));
-  const subtotal = property.basePriceNight * nights;
-  const totalAmount = subtotal + property.cleaningFee + property.serviceFee;
+
+  useEffect(() => {
+    const checkIn = format(checkInDate, "yyyy-MM-dd");
+    const checkOut = format(checkOutDate, "yyyy-MM-dd");
+    let cancelled = false;
+    setQuoteLoading(true);
+    fetch(
+      `/api/properties/${property.slug}/quote?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || data.error) {
+          if (!cancelled) setPriceQuote(null);
+          return;
+        }
+        setPriceQuote({
+          total: data.total,
+          accommodationSubtotal: data.accommodationSubtotal,
+          nights: data.nights,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setPriceQuote(null);
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [property.slug, checkInDate, checkOutDate]);
+
+  const accommodationTotal =
+    priceQuote?.accommodationSubtotal ?? property.basePriceNight * nights;
+  const totalAmount =
+    priceQuote?.total ??
+    property.basePriceNight * nights + property.cleaningFee + property.serviceFee;
 
   const checkGuestInfoComplete = (form: HTMLFormElement) => {
     const firstName = (form.elements.namedItem("firstName") as HTMLInputElement)?.value;
@@ -126,7 +180,11 @@ export default function BookingForm({ params }: { params: Promise<{ slug: string
     }
 
     if (!allPoliciesAccepted) {
-      setError("Please accept all policies before continuing.");
+      setError(
+        contractRequired
+          ? "Please accept all policies and the rental agreement before continuing."
+          : "Please accept all policies before continuing.",
+      );
       setLoading(false);
       return;
     }
@@ -143,6 +201,7 @@ export default function BookingForm({ params }: { params: Promise<{ slug: string
       numGuests,
       specialRequests: specialRequests.trim() || undefined,
       arrivalTime: arrivalTime || undefined,
+      ...(contractRequired ? { contractAccepted: true as const } : {}),
     };
 
     try {
@@ -266,6 +325,52 @@ export default function BookingForm({ params }: { params: Promise<{ slug: string
 
             <hr className="border-gray-100" />
 
+            {contractRequired && guestContractPdfUrl && (
+              <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                <div className="px-4 py-3 border-b border-gray-200">
+                  <h2 className="text-lg font-semibold text-[#2b2b36]">
+                    Rental agreement for this property
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Review the PDF below (scroll inside the viewer). You must accept it to complete your reservation.
+                  </p>
+                </div>
+                <div className="bg-[#f0f0f0]">
+                  <iframe
+                    title="Rental agreement PDF"
+                    src={`${guestContractPdfUrl}#view=FitH`}
+                    className="w-full min-h-[min(70vh,520px)] h-[520px] border-0 bg-white"
+                  />
+                </div>
+                <p className="text-center text-xs text-gray-500 px-3 py-2 border-t border-gray-100 bg-[#fafafa]">
+                  <a
+                    href={guestContractPdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#2b2b36] font-medium underline hover:text-[#414152]"
+                  >
+                    Open PDF in a new tab
+                  </a>
+                  {" · "}
+                  <span className="text-gray-400">If the preview does not load on your device, use this link.</span>
+                </p>
+                <label className="flex items-start gap-3 cursor-pointer group px-4 py-3 border-t border-gray-200 bg-white">
+                  <input
+                    type="checkbox"
+                    checked={agreeGuestContract}
+                    onChange={(e) => setAgreeGuestContract(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 rounded border-gray-300 text-[#2b2b36] focus:ring-[#2b2b36]/20 accent-[#2b2b36] cursor-pointer"
+                  />
+                  <span className="text-sm text-gray-700">
+                    I have read and agree to this rental agreement for{" "}
+                    <span className="font-medium text-[#2b2b36]">{property.name}</span>.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            <hr className="border-gray-100" />
+
             <div className="flex flex-col gap-3">
               <h2 className="text-xl font-semibold text-[#2b2b36] mb-1">Policies</h2>
               <label className="flex items-start gap-3 cursor-pointer group">
@@ -315,10 +420,14 @@ export default function BookingForm({ params }: { params: Promise<{ slug: string
             <div className="pt-4">
               <button
                 type="submit"
-                disabled={loading || !allPoliciesAccepted}
+                disabled={loading || quoteLoading || !allPoliciesAccepted}
                 className="w-full py-4 rounded-full bg-[#414152] hover:bg-[#2b2b36] text-white font-medium transition-colors shadow-md text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? "Redirecting to Stripe..." : `Continue to payment \u2014 $${totalAmount}`}
+                {loading
+                  ? "Redirecting to Stripe..."
+                  : quoteLoading
+                    ? "Loading price…"
+                    : `Continue to payment \u2014 $${totalAmount}`}
               </button>
               {!allPoliciesAccepted && (
                 <p className="text-xs text-gray-400 text-center mt-2">
@@ -365,8 +474,11 @@ export default function BookingForm({ params }: { params: Promise<{ slug: string
 
             <div className="flex flex-col gap-3 text-sm font-medium text-gray-600">
               <div className="flex justify-between items-center">
-                <span>${property.basePriceNight} x {nights} night{nights > 1 ? "s" : ""}</span>
-                <span>${subtotal}</span>
+                <span>
+                  Accommodation x {priceQuote?.nights ?? nights} night
+                  {(priceQuote?.nights ?? nights) > 1 ? "s" : ""}
+                </span>
+                <span>{quoteLoading ? "…" : `$${accommodationTotal}`}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>Cleaning fee</span>
@@ -378,7 +490,7 @@ export default function BookingForm({ params }: { params: Promise<{ slug: string
               </div>
               <div className="flex justify-between items-center text-[#2b2b36] font-bold text-lg pt-4 border-t border-gray-100">
                 <span>Total (USD)</span>
-                <span>${totalAmount}</span>
+                <span>{quoteLoading ? "…" : `$${totalAmount}`}</span>
               </div>
             </div>
           </div>

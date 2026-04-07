@@ -11,6 +11,10 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import {
+  SITE_CONTACT_EMAIL,
+  SITE_CONTACT_PHONE_TEL_HREFS,
+} from "@/lib/site-contact";
 
 interface BookingConfirmationEmailProps {
   guestFirstName: string;
@@ -99,12 +103,16 @@ export function BookingConfirmationEmail({
 
             <Text style={paragraph}>
               Need help? Contact us at{" "}
-              <Link href="mailto:info@feathershouses.com" style={link}>
-                info@feathershouses.com
+              <Link href={`mailto:${SITE_CONTACT_EMAIL}`} style={link}>
+                {SITE_CONTACT_EMAIL}
               </Link>{" "}
               or call{" "}
-              <Link href="tel:+18135550100" style={link}>
-                (813) 555-0100
+              <Link href={SITE_CONTACT_PHONE_TEL_HREFS[0]} style={link}>
+                (603) 484-9623
+              </Link>{" "}
+              or{" "}
+              <Link href={SITE_CONTACT_PHONE_TEL_HREFS[1]} style={link}>
+                (651) 285-6410
               </Link>
               .
             </Text>

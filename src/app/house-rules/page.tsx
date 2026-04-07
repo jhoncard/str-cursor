@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/layout/header";
+import {
+  SITE_CONTACT_EMAIL,
+  SITE_CONTACT_PHONE_DISPLAY,
+} from "@/lib/site-contact";
 
 export const metadata: Metadata = {
   title: "House Rules",
@@ -133,10 +137,13 @@ export default function HouseRulesPage() {
             <p>
               If you have questions about any of these rules or need clarification during your
               stay, please reach out to us at{" "}
-              <a href="mailto:info@feathershouses.com" className="text-[#2b2b36] underline">
-                info@feathershouses.com
+              <a
+                href={`mailto:${SITE_CONTACT_EMAIL}`}
+                className="text-[#2b2b36] underline"
+              >
+                {SITE_CONTACT_EMAIL}
               </a>{" "}
-              or call (813) 555-0100. We are happy to help.
+              or call {SITE_CONTACT_PHONE_DISPLAY}. We are happy to help.
             </p>
           </div>
         </div>

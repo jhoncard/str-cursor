@@ -1,4 +1,5 @@
 import type { Property } from "@/data/properties";
+import { SITE_CONTACT_EMAIL } from "@/lib/site-contact";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL || "https://feathershouses.com";
@@ -20,8 +21,8 @@ export function LodgingBusinessJsonLd() {
     description:
       "Premium short-term vacation rentals in Tampa and St. Petersburg, Florida. Book directly and save 10-15%.",
     url: BASE_URL,
-    telephone: "(813) 555-0100",
-    email: "info@feathershouses.com",
+    telephone: "(603) 484-9623, (651) 285-6410",
+    email: SITE_CONTACT_EMAIL,
     address: {
       "@type": "PostalAddress",
       addressLocality: "Tampa",

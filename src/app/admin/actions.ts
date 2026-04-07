@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import {
   PROPERTY_IMAGES_BUCKET,
   assertImagePropertyImage,
+  assertRentalAgreementPdf,
   buildPropertyImageStoragePath,
+  buildPropertyRentalPdfStoragePath,
   createServiceRoleSupabase,
   extractStoragePathFromPublicUrl,
 } from "@/lib/supabase/property-image-upload";
@@ -15,6 +17,8 @@ export async function updateProperty(
   data: {
     name?: string;
     description?: string;
+    guest_contract_pdf_url?: string | null;
+    pricelabs_listing_id?: string | null;
     short_description?: string;
     base_price_night?: number;
     max_guests?: number;
@@ -24,13 +28,26 @@ export async function updateProperty(
   await requireAdmin();
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("properties")
     .update(data)
-    .eq("id", propertyId);
+    .eq("id", propertyId)
+    .select("id");
 
   if (error) throw new Error(error.message);
+  if (!updated?.length) {
+    throw new Error(
+      "Could not save changes. Sign in as an admin or refresh the page and try again.",
+    );
+  }
   return { success: true };
+}
+
+/** Pull nightly rates from PriceLabs into `availability.price_override` (requires env + listing ID). */
+export async function syncPriceLabsRatesForPropertyAction(propertyId: string) {
+  await requireAdmin();
+  const { syncPriceLabsRatesForProperty } = await import("@/lib/pricelabs/sync-rates");
+  return syncPriceLabsRatesForProperty(propertyId);
 }
 
 export async function addPropertyImage(
@@ -130,6 +147,113 @@ export async function uploadPropertyImageFile(formData: FormData) {
 
   await addPropertyImage(propertyId.trim(), publicUrl, altText);
   return { success: true, url: publicUrl };
+}
+
+export async function uploadPropertyRentalAgreementPdf(formData: FormData) {
+  await requireAdmin();
+
+  const propertyId = formData.get("propertyId");
+  const file = formData.get("file");
+
+  if (typeof propertyId !== "string" || !propertyId.trim()) {
+    throw new Error("Missing property.");
+  }
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Choose a PDF to upload.");
+  }
+
+  assertRentalAgreementPdf(file);
+
+  const supabase = await createClient();
+  const pid = propertyId.trim();
+
+  const { data: row, error: fetchErr } = await supabase
+    .from("properties")
+    .select("guest_contract_pdf_url")
+    .eq("id", pid)
+    .maybeSingle();
+
+  if (fetchErr) throw new Error(fetchErr.message);
+
+  const oldUrl = row?.guest_contract_pdf_url as string | null | undefined;
+  if (oldUrl) {
+    const oldPath = extractStoragePathFromPublicUrl(oldUrl);
+    if (oldPath) {
+      const storageClient = createServiceRoleSupabase() ?? supabase;
+      await storageClient.storage
+        .from(PROPERTY_IMAGES_BUCKET)
+        .remove([oldPath]);
+    }
+  }
+
+  const path = buildPropertyRentalPdfStoragePath(pid);
+  const uploadClient = createServiceRoleSupabase() ?? supabase;
+
+  const { error: uploadError } = await uploadClient.storage
+    .from(PROPERTY_IMAGES_BUCKET)
+    .upload(path, file, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+
+  if (uploadError) throw new Error(uploadError.message);
+
+  const {
+    data: { publicUrl },
+  } = uploadClient.storage.from(PROPERTY_IMAGES_BUCKET).getPublicUrl(path);
+
+  const { data: updatedRows, error: updateErr } = await supabase
+    .from("properties")
+    .update({ guest_contract_pdf_url: publicUrl })
+    .eq("id", pid)
+    .select("id");
+
+  if (updateErr) throw new Error(updateErr.message);
+  if (!updatedRows?.length) {
+    throw new Error(
+      "Could not save the PDF link to the property. Ensure you are logged in as an admin and try again.",
+    );
+  }
+
+  return { success: true, url: publicUrl };
+}
+
+export async function removePropertyRentalAgreementPdf(propertyId: string) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { data: row, error: fetchErr } = await supabase
+    .from("properties")
+    .select("guest_contract_pdf_url")
+    .eq("id", propertyId)
+    .maybeSingle();
+
+  if (fetchErr) throw new Error(fetchErr.message);
+
+  const url = row?.guest_contract_pdf_url as string | null | undefined;
+  if (url) {
+    const storagePath = extractStoragePathFromPublicUrl(url);
+    if (storagePath) {
+      const storageClient = createServiceRoleSupabase() ?? supabase;
+      await storageClient.storage
+        .from(PROPERTY_IMAGES_BUCKET)
+        .remove([storagePath]);
+    }
+  }
+
+  const { data: cleared, error } = await supabase
+    .from("properties")
+    .update({ guest_contract_pdf_url: null })
+    .eq("id", propertyId)
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  if (!cleared?.length) {
+    throw new Error(
+      "Could not update the property. Ensure you are logged in as an admin.",
+    );
+  }
+  return { success: true };
 }
 
 const ICAL_SOURCE_OPTIONS = [

@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/layout/header";
 import {
+  SITE_CONTACT_EMAIL,
+  SITE_CONTACT_PHONE_DISPLAY,
+} from "@/lib/site-contact";
+import {
   Accordion,
   AccordionItem,
   AccordionTrigger,
@@ -12,6 +16,8 @@ export const metadata: Metadata = {
   description:
     "Frequently asked questions about staying at Feathers Houses properties in Tampa Bay.",
 };
+
+const contactHostAnswer = `You can reach us through the Airbnb messaging platform, by email at ${SITE_CONTACT_EMAIL}, or by phone at ${SITE_CONTACT_PHONE_DISPLAY}. We monitor all channels and typically respond within one hour. For emergencies, calling is the fastest way to reach us.`;
 
 const faqs = [
   {
@@ -51,8 +57,7 @@ const faqs = [
   },
   {
     question: "How do I contact the host during my stay?",
-    answer:
-      "You can reach us through the Airbnb messaging platform, by email at info@feathershouses.com, or by phone at (813) 555-0100. We monitor all channels and typically respond within one hour. For emergencies, calling is the fastest way to reach us.",
+    answer: contactHostAnswer,
   },
   {
     question: "Are your properties suitable for remote work?",

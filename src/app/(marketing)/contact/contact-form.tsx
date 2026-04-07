@@ -2,15 +2,21 @@
 
 import { useState, type FormEvent } from "react";
 import { Mail, Phone, MapPin } from "lucide-react";
+import {
+  SITE_CONTACT_EMAIL,
+  SITE_CONTACT_PHONE_TEL_HREFS,
+} from "@/lib/site-contact";
 
 export default function ContactForm() {
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [successNote, setSuccessNote] = useState("");
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setStatus("sending");
     setErrorMessage("");
+    setSuccessNote("");
 
     const formData = new FormData(e.currentTarget);
     const data = {
@@ -31,12 +37,22 @@ export default function ContactForm() {
 
       if (!res.ok) {
         setStatus("error");
-        setErrorMessage(json.error ?? "Something went wrong.");
+        const parts = [json.error, json.hint].filter(
+          (s: unknown): s is string => typeof s === "string" && s.length > 0,
+        );
+        setErrorMessage(
+          parts.length > 0 ? parts.join(" ") : "Something went wrong.",
+        );
         return;
       }
 
       setStatus("success");
       e.currentTarget.reset();
+      if (json.devEmailSkipped === true) {
+        setSuccessNote(
+          "Development mode: RESEND_API_KEY is not set, so no email was sent. Your message was logged in the server terminal. Add a key to .env.local to deliver mail.",
+        );
+      }
     } catch {
       setStatus("error");
       setErrorMessage("Failed to send message. Please try again.");
@@ -59,8 +75,15 @@ export default function ContactForm() {
           <h2 className="text-xl font-semibold text-[#2b2b36] mb-6">Send Us a Message</h2>
 
           {status === "success" && (
-            <div className="mb-6 rounded-xl bg-green-50 border border-green-200 px-5 py-4 text-sm text-green-800">
-              Your message has been sent. We will get back to you shortly.
+            <div className="mb-6 space-y-3">
+              <div className="rounded-xl bg-green-50 border border-green-200 px-5 py-4 text-sm text-green-800">
+                Your message has been sent. We will get back to you shortly.
+              </div>
+              {successNote && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 px-5 py-4 text-sm text-amber-900">
+                  {successNote}
+                </div>
+              )}
             </div>
           )}
 
@@ -148,10 +171,10 @@ export default function ContactForm() {
                 <div>
                   <p className="text-sm font-medium text-[#2b2b36]">Email</p>
                   <a
-                    href="mailto:info@feathershouses.com"
+                    href={`mailto:${SITE_CONTACT_EMAIL}`}
                     className="text-sm text-gray-500 hover:text-[#2b2b36] transition-colors"
                   >
-                    info@feathershouses.com
+                    {SITE_CONTACT_EMAIL}
                   </a>
                 </div>
               </div>
@@ -162,12 +185,21 @@ export default function ContactForm() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-[#2b2b36]">Phone</p>
-                  <a
-                    href="tel:+18135550100"
-                    className="text-sm text-gray-500 hover:text-[#2b2b36] transition-colors"
-                  >
-                    (813) 555-0100
-                  </a>
+                  <p className="text-sm text-gray-500">
+                    <a
+                      href={SITE_CONTACT_PHONE_TEL_HREFS[0]}
+                      className="hover:text-[#2b2b36] transition-colors"
+                    >
+                      (603) 484-9623
+                    </a>
+                    {" or "}
+                    <a
+                      href={SITE_CONTACT_PHONE_TEL_HREFS[1]}
+                      className="hover:text-[#2b2b36] transition-colors"
+                    >
+                      (651) 285-6410
+                    </a>
+                  </p>
                 </div>
               </div>
 

@@ -122,6 +122,8 @@ interface FinalizeStripeBookingPayload {
   totalAmount: number;
   nightlyRate: number;
   cleaningFee: number;
+  /** ISO timestamp from Stripe metadata when guest accepted property rental agreement at checkout. */
+  contractAcceptedAt?: string;
 }
 
 export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPayload) {
@@ -135,7 +137,7 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
 
     const dbProperty = await db.query.properties.findFirst({
       where: eq(properties.slug, payload.propertySlug),
-      columns: { id: true, name: true, maxGuests: true },
+      columns: { id: true, name: true, maxGuests: true, guestContractPdfUrl: true },
     });
 
     if (!dbProperty) {
@@ -172,6 +174,10 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
     }
 
     const confirmationCode = generateConfirmationCode(payload.paymentIntentId);
+    const acceptedAt = payload.contractAcceptedAt
+      ? new Date(payload.contractAcceptedAt)
+      : null;
+
     const [newBooking] = await db
       .insert(bookings)
       .values({
@@ -191,6 +197,10 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
         paymentStatus: "paid",
         bookingStatus: "confirmed",
         source: "direct",
+        contractAcceptedAt: acceptedAt,
+        contractTextSnapshot: acceptedAt
+          ? (dbProperty.guestContractPdfUrl?.trim() || null)
+          : null,
       })
       .returning({ id: bookings.id, confirmationCode: bookings.confirmationCode });
 

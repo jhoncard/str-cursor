@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { addYears, format } from "date-fns";
 import { propertiesData } from "@/data/properties";
 import { getBlockedDates } from "@/lib/availability";
+import { db } from "@/lib/db";
+import { properties } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { Header } from "@/components/layout/header";
 import { MapPin, Users, BedDouble, Bath, CheckCircle2, Star, Share, Heart } from "lucide-react";
 
@@ -46,9 +49,18 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
     notFound();
   }
 
+  const dbProperty = await db.query.properties.findFirst({
+    where: eq(properties.slug, slug),
+    columns: { id: true },
+  });
+
   const rangeStart = new Date();
   const rangeEnd = addYears(rangeStart, 2);
-  const blockedDates = await getBlockedDates(property.id, rangeStart, rangeEnd);
+  const blockedDates = await getBlockedDates(
+    dbProperty?.id ?? property.id,
+    rangeStart,
+    rangeEnd
+  );
   const blockedDateStrings = blockedDates.map((d) => format(d, "yyyy-MM-dd"));
 
   return (

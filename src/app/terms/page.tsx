@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/layout/header";
+import {
+  SITE_CONTACT_EMAIL,
+  SITE_CONTACT_PHONE_DISPLAY,
+} from "@/lib/site-contact";
 
 export const metadata: Metadata = {
   title: "Terms and Conditions",
@@ -111,10 +115,13 @@ export default function TermsPage() {
             <h2>11. Contact</h2>
             <p>
               For questions about these Terms and Conditions, please reach out to us at{" "}
-              <a href="mailto:info@feathershouses.com" className="text-[#2b2b36] underline">
-                info@feathershouses.com
+              <a
+                href={`mailto:${SITE_CONTACT_EMAIL}`}
+                className="text-[#2b2b36] underline"
+              >
+                {SITE_CONTACT_EMAIL}
               </a>{" "}
-              or call (813) 555-0100.
+              or call {SITE_CONTACT_PHONE_DISPLAY}.
             </p>
           </div>
         </div>

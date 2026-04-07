@@ -10,6 +10,7 @@ import {
   KeyRound,
   MessageCircle,
   ArrowRight,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -23,6 +24,8 @@ interface SessionData {
   customerEmail: string | null;
   metadata: Record<string, string>;
   confirmationCode: string | null;
+  /** Rental agreement PDF URL when configured for this property (from database). */
+  guestContractPdfUrl?: string | null;
 }
 
 export default function SuccessContent() {
@@ -171,6 +174,35 @@ export default function SuccessContent() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {status === "paid" && sessionData?.guestContractPdfUrl && (
+          <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-[#2b2b36]" />
+              <h2 className="text-xl font-semibold text-[#2b2b36]">Your rental agreement</h2>
+            </div>
+            <p className="text-sm text-gray-500">
+              You agreed to this document before payment. You can review it anytime below.
+            </p>
+            <div className="rounded-xl border border-gray-200 overflow-hidden bg-[#f0f0f0]">
+              <iframe
+                title="Rental agreement PDF"
+                src={`${sessionData.guestContractPdfUrl}#view=FitH`}
+                className="w-full min-h-[min(55vh,420px)] h-[420px] border-0 bg-white"
+              />
+            </div>
+            <p className="text-center text-sm">
+              <a
+                href={sessionData.guestContractPdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#2b2b36] font-medium underline hover:text-[#414152]"
+              >
+                Open PDF in a new tab
+              </a>
+            </p>
           </div>
         )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { addDays, differenceInCalendarDays, format } from "date-fns";
 import { ChevronDown, Minus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -33,6 +33,12 @@ export function PropertyDetailBookingCard({
     to: undefined,
   });
   const [guests, setGuests] = useState(1);
+  const [priceQuote, setPriceQuote] = useState<{
+    accommodationSubtotal: number;
+    total: number;
+    nights: number;
+  } | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   const blockedSet = useMemo(
     () => new Set(blockedDateStrings),
@@ -44,7 +50,46 @@ export function PropertyDetailBookingCard({
     return Math.max(1, differenceInCalendarDays(date.to, date.from));
   }, [date]);
 
-  const total = basePriceNight * nights + cleaningFee + serviceFee;
+  useEffect(() => {
+    if (!date?.from || !date?.to) {
+      setPriceQuote(null);
+      return;
+    }
+    const checkIn = format(date.from, "yyyy-MM-dd");
+    const checkOut = format(date.to, "yyyy-MM-dd");
+    let cancelled = false;
+    setQuoteLoading(true);
+    fetch(
+      `/api/properties/${slug}/quote?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || data.error) {
+          if (!cancelled) setPriceQuote(null);
+          return;
+        }
+        setPriceQuote({
+          accommodationSubtotal: data.accommodationSubtotal,
+          total: data.total,
+          nights: data.nights,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setPriceQuote(null);
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, date?.from, date?.to]);
+
+  const displayNights = priceQuote?.nights ?? nights;
+  const accommodationTotal =
+    priceQuote?.accommodationSubtotal ?? basePriceNight * nights;
+  const total =
+    priceQuote?.total ?? basePriceNight * nights + cleaningFee + serviceFee;
 
   const handleReserve = () => {
     if (!date?.from || !date?.to) return;
@@ -177,8 +222,12 @@ export function PropertyDetailBookingCard({
 
       <div className="flex flex-col gap-4 text-sm font-medium text-gray-600 border-t border-gray-100 pt-6">
         <div className="flex justify-between items-center">
-          <span className="underline underline-offset-2">${basePriceNight} x {nights} night{nights > 1 ? "s" : ""}</span>
-          <span>${basePriceNight * nights}</span>
+          <span className="underline underline-offset-2">
+            Accommodation x {displayNights} night{displayNights !== 1 ? "s" : ""}
+          </span>
+          <span>
+            {quoteLoading ? "…" : `$${accommodationTotal}`}
+          </span>
         </div>
         <div className="flex justify-between items-center">
           <span className="underline underline-offset-2">Cleaning fee</span>
@@ -190,7 +239,7 @@ export function PropertyDetailBookingCard({
         </div>
         <div className="flex justify-between items-center text-[#2b2b36] font-bold text-lg pt-4 border-t border-gray-100">
           <span>Total before taxes</span>
-          <span>${total}</span>
+          <span>{quoteLoading ? "…" : `$${total}`}</span>
         </div>
       </div>
     </div>

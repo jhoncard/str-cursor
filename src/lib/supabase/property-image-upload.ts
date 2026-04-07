@@ -10,6 +10,7 @@ export const PROPERTY_IMAGES_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_PROPERTY_IMAGES_BUCKET ?? "property-images";
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_RENTAL_PDF_BYTES = 15 * 1024 * 1024;
 
 export function sanitizeImageFileName(name: string): string {
   const base = name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
@@ -30,6 +31,23 @@ export function assertImagePropertyImage(file: File) {
   if (file.size > MAX_IMAGE_BYTES) {
     throw new Error("Image must be 10MB or smaller.");
   }
+}
+
+export function assertRentalAgreementPdf(file: File) {
+  const okType =
+    file.type === "application/pdf" ||
+    file.name.toLowerCase().endsWith(".pdf");
+  if (!okType) {
+    throw new Error("Please upload a PDF file.");
+  }
+  if (file.size > MAX_RENTAL_PDF_BYTES) {
+    throw new Error("PDF must be 15MB or smaller.");
+  }
+}
+
+/** Stored next to images: `{propertyId}/rental-agreement-{uuid}.pdf` */
+export function buildPropertyRentalPdfStoragePath(propertyId: string): string {
+  return `${propertyId.trim()}/rental-agreement-${newUuid()}.pdf`;
 }
 
 /** Server-only: bypasses Storage RLS when set in env. */

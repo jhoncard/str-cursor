@@ -6,7 +6,7 @@ export const propertyTypeEnum = pgEnum('property_type', ['room', 'guest_suite', 
 export const propertyStatusEnum = pgEnum('property_status', ['active', 'inactive', 'maintenance']);
 export const amenityCategoryEnum = pgEnum('amenity_category', ['essentials', 'kitchen', 'safety', 'outdoor', 'entertainment', 'parking']);
 export const availabilityStatusEnum = pgEnum('availability_status', ['available', 'booked', 'blocked']);
-export const bookingSourceEnum = pgEnum('booking_source', ['direct', 'airbnb', 'vrbo', 'booking_com', 'manual']);
+export const bookingSourceEnum = pgEnum('booking_source', ['direct', 'airbnb', 'vrbo', 'booking_com', 'manual', 'pricelabs']);
 export const bookingPaymentStatusEnum = pgEnum('payment_status', ['pending', 'paid', 'refunded', 'partial_refund']);
 export const bookingStatusEnum = pgEnum('booking_status', ['confirmed', 'cancelled', 'completed', 'no_show']);
 export const userRoleEnum = pgEnum('user_role', ['guest', 'admin']);
@@ -18,6 +18,8 @@ export const properties = pgTable('properties', {
   name: varchar('name', { length: 255 }).notNull(),
   propertyType: propertyTypeEnum('property_type').notNull(),
   description: text('description'),
+  /** Public URL of the rental agreement PDF (Supabase Storage); guests must accept before paying when set. */
+  guestContractPdfUrl: text('guest_contract_pdf_url'),
   shortDescription: varchar('short_description', { length: 160 }),
   locationCity: varchar('location_city', { length: 255 }).notNull(),
   locationAddress: varchar('location_address', { length: 255 }),
@@ -28,6 +30,8 @@ export const properties = pgTable('properties', {
   beds: integer('beds').default(1).notNull(),
   bathrooms: integer('bathrooms').default(1).notNull(),
   basePriceNight: numeric('base_price_night').notNull(),
+  /** PriceLabs listing ID (from their dashboard) when using dynamic pricing sync. */
+  pricelabsListingId: varchar('pricelabs_listing_id', { length: 128 }),
   cleaningFee: numeric('cleaning_fee').default('0'),
   petFee: numeric('pet_fee').default('0'),
   status: propertyStatusEnum('status').default('active').notNull(),
@@ -127,6 +131,10 @@ export const bookings = pgTable('bookings', {
   bookingStatus: bookingStatusEnum('booking_status').default('confirmed').notNull(),
   paymentIntentId: varchar('payment_intent_id', { length: 255 }),
   specialRequests: text('special_requests'),
+  /** When the guest accepted the property rental agreement (server time at checkout session creation). */
+  contractAcceptedAt: timestamp('contract_accepted_at'),
+  /** Snapshot of rental agreement at booking time (PDF public URL). */
+  contractTextSnapshot: text('contract_text_snapshot'),
   source: bookingSourceEnum('source').default('direct').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

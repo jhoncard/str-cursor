@@ -73,6 +73,30 @@ create policy "Admins read property_ical_blocked_dates"
     )
   );
 
+drop policy if exists "Admins insert property_ical_blocked_dates" on public.property_ical_blocked_dates;
+create policy "Admins insert property_ical_blocked_dates"
+  on public.property_ical_blocked_dates
+  for insert
+  to authenticated
+  with check (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+  );
+
+drop policy if exists "Admins delete property_ical_blocked_dates" on public.property_ical_blocked_dates;
+create policy "Admins delete property_ical_blocked_dates"
+  on public.property_ical_blocked_dates
+  for delete
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+  );
+
 -- Optional: remove legacy rows from the old approach (blocked in availability only).
 delete from public.availability
 where status = 'blocked'

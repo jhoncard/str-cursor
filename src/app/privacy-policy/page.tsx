@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/layout/header";
+import {
+  SITE_CONTACT_EMAIL,
+  SITE_CONTACT_PHONE_DISPLAY,
+} from "@/lib/site-contact";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -101,10 +105,13 @@ export default function PrivacyPolicyPage() {
             <p>
               If you have questions about this Privacy Policy or how we handle your data,
               please contact us at{" "}
-              <a href="mailto:info@feathershouses.com" className="text-[#2b2b36] underline">
-                info@feathershouses.com
+              <a
+                href={`mailto:${SITE_CONTACT_EMAIL}`}
+                className="text-[#2b2b36] underline"
+              >
+                {SITE_CONTACT_EMAIL}
               </a>{" "}
-              or call us at (813) 555-0100.
+              or call us at {SITE_CONTACT_PHONE_DISPLAY}.
             </p>
           </div>
         </div>

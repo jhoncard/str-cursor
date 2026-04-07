@@ -3,6 +3,12 @@ import { availability, propertyIcalBlockedDates } from '@/lib/db/schema';
 import { eq, and, gte, lte, inArray } from 'drizzle-orm';
 import { addDays, format } from 'date-fns';
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 /** Nights occupied for a stay: checkIn .. checkOut (checkOut is exclusive). */
 export function eachStayNight(checkIn: string, checkOut: string): string[] {
   const nights: string[] = [];
@@ -21,6 +27,12 @@ export async function getBlockedDates(
   startDate: Date,
   endDate: Date,
 ): Promise<Date[]> {
+  // Some local/demo property records still use ids like "prop-1".
+  // DB availability tables are UUID-based; avoid crashing on invalid UUID input.
+  if (!isUuid(propertyId)) {
+    return [];
+  }
+
   const start = format(startDate, 'yyyy-MM-dd');
   const end = format(endDate, 'yyyy-MM-dd');
 
@@ -61,6 +73,11 @@ export async function isStayAvailable(
   checkIn: string,
   checkOut: string,
 ): Promise<boolean> {
+  // Without a DB UUID we cannot look up persisted availability rows.
+  if (!isUuid(propertyId)) {
+    return true;
+  }
+
   const nights = eachStayNight(checkIn, checkOut);
   if (nights.length === 0) return false;
 

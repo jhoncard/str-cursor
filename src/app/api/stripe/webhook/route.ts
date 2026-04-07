@@ -62,6 +62,11 @@ export async function POST(request: NextRequest) {
     );
     const nightlyRate = nights > 0 ? (property.basePriceNight) : property.basePriceNight;
 
+    const contractAcceptedAt =
+      typeof metadata.contractAcceptedAt === "string"
+        ? metadata.contractAcceptedAt
+        : undefined;
+
     const finalized = await finalizeBookingFromStripe({
       paymentIntentId,
       propertySlug,
@@ -75,6 +80,7 @@ export async function POST(request: NextRequest) {
       totalAmount: amountTotal,
       nightlyRate,
       cleaningFee: property.cleaningFee,
+      ...(contractAcceptedAt ? { contractAcceptedAt } : {}),
     });
 
     if (!finalized.success) {

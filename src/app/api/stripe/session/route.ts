@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
-import { bookings } from "@/lib/db/schema";
+import { bookings, properties } from "@/lib/db/schema";
 import { getStripe } from "@/lib/stripe";
 import { eq } from "drizzle-orm";
 
@@ -31,6 +31,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const propertySlug = session.metadata?.propertySlug;
+    let guestContractPdfUrl: string | null = null;
+    if (propertySlug) {
+      try {
+        const prop = await db.query.properties.findFirst({
+          where: eq(properties.slug, propertySlug),
+          columns: { guestContractPdfUrl: true },
+        });
+        const url = prop?.guestContractPdfUrl?.trim();
+        guestContractPdfUrl = url || null;
+      } catch (e) {
+        console.error("Property contract URL lookup failed:", e);
+      }
+    }
+
     return NextResponse.json({
       id: session.id,
       paymentStatus: session.payment_status,
@@ -39,6 +54,7 @@ export async function GET(request: NextRequest) {
       customerEmail: session.customer_details?.email ?? session.customer_email ?? null,
       metadata: session.metadata ?? {},
       confirmationCode,
+      guestContractPdfUrl,
     });
   } catch (error) {
     console.error("Stripe session fetch error:", error);

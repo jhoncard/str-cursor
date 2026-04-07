@@ -1,4 +1,5 @@
 import { X, Heart, CheckCircle2, Phone } from "lucide-react";
+import { SITE_CONTACT_PHONE_DISPLAY } from "@/lib/site-contact";
 
 export function PropertyModal() {
   return (
@@ -65,7 +66,8 @@ export function PropertyModal() {
             </p>
 
             <div className="text-sm font-medium text-white/90 flex items-center gap-2 mt-2">
-              Questions? Give Us A Call <Phone className="w-4 h-4 ml-2" /> 415-231-1701
+              Questions? Give Us A Call <Phone className="w-4 h-4 ml-2" />{" "}
+              {SITE_CONTACT_PHONE_DISPLAY}
             </div>
 
             {/* Benefits */}

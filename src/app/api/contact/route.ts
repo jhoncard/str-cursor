@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { sendEmail } from "@/lib/email";
+import { isResendConfigured, sendEmail } from "@/lib/email";
 import { ContactFormEmail } from "@/lib/email/templates/contact-form";
+import { CONTACT_FORM_INBOX_EMAIL } from "@/lib/site-contact";
+
+const isDev = process.env.NODE_ENV === "development";
 
 export async function POST(request: Request) {
   try {
@@ -33,8 +36,32 @@ export async function POST(request: Request) {
       );
     }
 
+    const inbox =
+      process.env.CONTACT_EMAIL?.trim() || CONTACT_FORM_INBOX_EMAIL;
+
+    if (!isResendConfigured()) {
+      if (isDev) {
+        console.warn("[contact] RESEND_API_KEY is not set; skipping send.", {
+          to: inbox,
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone?.trim(),
+          messagePreview: message.trim().slice(0, 200),
+        });
+        return NextResponse.json({ success: true, devEmailSkipped: true });
+      }
+      return NextResponse.json(
+        {
+          error:
+            "Contact email is not configured on the server. Please reach us directly.",
+          hint: `Email ${CONTACT_FORM_INBOX_EMAIL}`,
+        },
+        { status: 503 },
+      );
+    }
+
     await sendEmail({
-      to: "info@feathershouses.com",
+      to: inbox,
       subject: `Contact Form: ${name.trim()}`,
       body: ContactFormEmail({
         name: name.trim(),
@@ -47,8 +74,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Contact form error:", error);
+    const messageText =
+      error instanceof Error ? error.message : "Unknown error";
+    const resendHint =
+      "Verify RESEND_API_KEY and that EMAIL_FROM uses an address on a domain verified at resend.com/domains.";
     return NextResponse.json(
-      { error: "Failed to send message. Please try again." },
+      {
+        error: isDev
+          ? messageText
+          : "Failed to send message. Please try again or email us directly.",
+        hint: isDev
+          ? resendHint
+          : `If this keeps happening, email us at ${CONTACT_FORM_INBOX_EMAIL}.`,
+      },
       { status: 500 },
     );
   }
