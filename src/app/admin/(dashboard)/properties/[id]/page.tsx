@@ -719,6 +719,10 @@ export default function PropertyEditorPage() {
                 }
                 setSeamSyncing(true);
                 try {
+                  // Persist device ID before sync — Drizzle reads the DB, not unsaved form state.
+                  await updateProperty(property.id, {
+                    seam_device_id: property.seam_device_id.trim() || null,
+                  });
                   const result = await syncSeamAccessCodesForPropertyAction(property.id);
                   const msg =
                     result.message ??

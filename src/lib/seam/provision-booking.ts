@@ -203,7 +203,12 @@ export async function syncSeamAccessCodesForProperty(propertyId: string): Promis
     columns: { seamDeviceId: true },
   });
   if (!prop?.seamDeviceId?.trim()) {
-    return { ok: true, updated: 0, message: "No Seam device ID on this property." };
+    return {
+      ok: true,
+      updated: 0,
+      message:
+        "No Seam device ID on this property. In admin -> property edit, paste the lock's device_id from the Seam dashboard, save the property, then push codes again.",
+    };
   }
 
   const today = new Date().toISOString().slice(0, 10);
