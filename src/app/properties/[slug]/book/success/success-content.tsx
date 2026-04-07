@@ -21,7 +21,8 @@ interface SessionData {
   paymentStatus: string;
   amountTotal: number | null;
   currency: string | null;
-  customerEmail: string | null;
+  // customerEmail intentionally removed — see /api/stripe/session route and
+  // security audit Finding #2. PII is no longer returned by the public endpoint.
   metadata: Record<string, string>;
   confirmationCode: string | null;
   /** Rental agreement PDF URL when configured for this property (from database). */

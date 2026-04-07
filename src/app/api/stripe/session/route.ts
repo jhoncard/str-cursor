@@ -51,8 +51,20 @@ export async function GET(request: NextRequest) {
       paymentStatus: session.payment_status,
       amountTotal: session.amount_total,
       currency: session.currency,
-      customerEmail: session.customer_details?.email ?? session.customer_email ?? null,
-      metadata: session.metadata ?? {},
+      // Security: do NOT return customerEmail, customer_details, or the full
+      // metadata bag. This endpoint is unauthenticated — anyone with a session
+      // ID (which appears in success_url, browser history, Referer headers,
+      // server logs) could otherwise read the guest's full PII. We allow-list
+      // only the fields the success page needs to render the reservation card.
+      // See security audit Finding #2 (CWE-639).
+      metadata: {
+        propertySlug: session.metadata?.propertySlug ?? "",
+        propertyName: session.metadata?.propertyName ?? "",
+        propertyImage: session.metadata?.propertyImage ?? "",
+        numGuests: session.metadata?.numGuests ?? "",
+        checkIn: session.metadata?.checkIn ?? "",
+        checkOut: session.metadata?.checkOut ?? "",
+      },
       confirmationCode,
       guestContractPdfUrl,
     });
