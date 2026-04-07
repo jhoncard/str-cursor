@@ -9,7 +9,13 @@ function newUuid(): string {
 export const PROPERTY_IMAGES_BUCKET =
   process.env.NEXT_PUBLIC_SUPABASE_PROPERTY_IMAGES_BUCKET ?? "property-images";
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+// Client-side compression (src/lib/compress-image.ts) targets ≤ 500 KB
+// per image. 3 MB is a safety ceiling: high enough to tolerate edge
+// cases like wide panoramas or rare compression underperformers, low
+// enough that a raw phone photo uploaded by mistake is rejected loudly
+// instead of silently storing 20 MB.
+// See feature doc Task 4.
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 const MAX_RENTAL_PDF_BYTES = 15 * 1024 * 1024;
 
 export function sanitizeImageFileName(name: string): string {
@@ -64,7 +70,9 @@ async function detectAllowedImageType(file: File): Promise<string | null> {
 
 export async function assertImagePropertyImage(file: File): Promise<void> {
   if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("Image must be 10MB or smaller.");
+    throw new Error(
+      "Image is larger than 3 MB after compression — try a different photo.",
+    );
   }
   const detected = await detectAllowedImageType(file);
   if (!detected) {
