@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { propertiesData } from "@/data/properties";
 import { getStripe } from "@/lib/stripe";
@@ -8,20 +9,26 @@ import { db } from "@/lib/db";
 import { properties } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
-interface CheckoutPayload {
-  slug: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  checkIn: string;
-  checkOut: string;
-  numGuests: number;
-  specialRequests?: string;
-  arrivalTime?: string;
-  /** Required when the property has a rental agreement PDF. */
-  contractAccepted?: boolean;
-}
+// Security: server-side schema validation. Caps every string so attacker
+// payloads cannot reach Stripe metadata (which has a 500-char per-value
+// limit), Resend templates, or the database. Date format is enforced as
+// yyyy-MM-dd so downstream new Date() math cannot produce nonsense.
+// See security audit Finding #3 (CWE-20).
+const CheckoutSchema = z.object({
+  slug: z.string().min(1).max(200),
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  email: z.string().trim().email().max(254),
+  phone: z.string().trim().min(5).max(30),
+  checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "checkIn must be yyyy-MM-dd"),
+  checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "checkOut must be yyyy-MM-dd"),
+  numGuests: z.number().int().min(1).max(50),
+  specialRequests: z.string().trim().max(1000).optional(),
+  arrivalTime: z.string().trim().max(20).optional(),
+  contractAccepted: z.boolean().optional(),
+});
+
+type CheckoutPayload = z.infer<typeof CheckoutSchema>;
 
 function toCurrencyAmount(value: number) {
   return Math.round(value * 100);
@@ -29,14 +36,27 @@ function toCurrencyAmount(value: number) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CheckoutPayload;
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    }
+    const parsed = CheckoutSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Please check the booking details and try again." },
+        { status: 400 },
+      );
+    }
+    const body: CheckoutPayload = parsed.data;
     const property = propertiesData.find((item) => item.slug === body.slug);
 
     if (!property) {
       return NextResponse.json({ error: "Property not found." }, { status: 404 });
     }
 
-    if (!body.numGuests || body.numGuests < 1 || body.numGuests > property.maxGuests) {
+    if (body.numGuests < 1 || body.numGuests > property.maxGuests) {
       return NextResponse.json(
         { error: `Guest count must be between 1 and ${property.maxGuests}.` },
         { status: 400 }
