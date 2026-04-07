@@ -15,6 +15,7 @@ import {
   deletePropertyIcalFeed,
   syncPropertyIcalFeedNow,
   regeneratePropertyIcalExportToken,
+  syncSeamAccessCodesForPropertyAction,
 } from "../../../actions";
 import {
   Save,
@@ -32,6 +33,7 @@ import {
   RefreshCw,
   Link2,
   FileText,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -49,6 +51,10 @@ type PropertyData = {
   max_guests: number;
   status: string;
   ical_export_token: string;
+  check_in_time: string;
+  check_out_time: string;
+  timezone: string;
+  seam_device_id: string;
 };
 
 type IcalFeedRow = {
@@ -97,6 +103,7 @@ export default function PropertyEditorPage() {
   const [newFeedSource, setNewFeedSource] = useState("airbnb");
   const [icalBusy, setIcalBusy] = useState<string | null>(null);
   const [icalLoadError, setIcalLoadError] = useState<string | null>(null);
+  const [seamSyncing, setSeamSyncing] = useState(false);
 
   const showToast = useCallback((type: Toast["type"], message: string) => {
     setToast({ type, message });
@@ -124,7 +131,7 @@ export default function PropertyEditorPage() {
         supabase
           .from("properties")
           .select(
-            "id, slug, name, description, guest_contract_pdf_url, pricelabs_listing_id, short_description, base_price_night, max_guests, status, ical_export_token"
+            "id, slug, name, description, guest_contract_pdf_url, pricelabs_listing_id, short_description, base_price_night, max_guests, status, ical_export_token, check_in_time, check_out_time, timezone, seam_device_id"
           )
           .eq("id", id)
           .single(),
@@ -164,6 +171,22 @@ export default function PropertyEditorPage() {
         max_guests: propRes.data.max_guests,
         status: propRes.data.status,
         ical_export_token: token,
+        check_in_time:
+          typeof propRes.data.check_in_time === "string"
+            ? propRes.data.check_in_time.slice(0, 5)
+            : "16:00",
+        check_out_time:
+          typeof propRes.data.check_out_time === "string"
+            ? propRes.data.check_out_time.slice(0, 5)
+            : "11:00",
+        timezone:
+          typeof propRes.data.timezone === "string"
+            ? propRes.data.timezone
+            : "America/New_York",
+        seam_device_id:
+          typeof propRes.data.seam_device_id === "string"
+            ? propRes.data.seam_device_id
+            : "",
       });
       setImages(imgRes.data ?? []);
 
@@ -196,6 +219,10 @@ export default function PropertyEditorPage() {
         base_price_night: property.base_price_night,
         max_guests: property.max_guests,
         status: property.status,
+        check_in_time: property.check_in_time.slice(0, 5),
+        check_out_time: property.check_out_time.slice(0, 5),
+        timezone: property.timezone.trim() || "America/New_York",
+        seam_device_id: property.seam_device_id.trim() || null,
       });
       showToast("success", "Property saved successfully");
     } catch (e) {
@@ -603,6 +630,120 @@ export default function PropertyEditorPage() {
                 Sync rates now
               </button>
             </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-gray-50 text-[#2b2b36]">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-semibold text-[#2b2b36]">
+                  Check-in times &amp; smart lock (Seam)
+                </h2>
+                <p className="text-sm text-[#2b2b36]/50 mt-1">
+                  When a reservation is confirmed, a 4-digit door code is created on the lock
+                  linked below. It is valid from 30 minutes before check-in until 30 minutes
+                  after check-out (property local time). Set{" "}
+                  <code className="text-xs bg-gray-100 px-1 rounded">SEAM_API_KEY</code>{" "}
+                  (and optionally{" "}
+                  <code className="text-xs bg-gray-100 px-1 rounded">SEAM_WORKSPACE_ID</code>
+                  ) in the server environment.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-[#2b2b36]/60 mb-1.5">
+                  Default check-in time
+                </label>
+                <input
+                  type="time"
+                  value={property.check_in_time}
+                  onChange={(e) => updateField("check_in_time", e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#2b2b36]/60 mb-1.5">
+                  Default check-out time
+                </label>
+                <input
+                  type="time"
+                  value={property.check_out_time}
+                  onChange={(e) => updateField("check_out_time", e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#2b2b36]/60 mb-1.5">
+                Property timezone (IANA)
+              </label>
+              <input
+                type="text"
+                value={property.timezone}
+                onChange={(e) => updateField("timezone", e.target.value)}
+                placeholder="America/New_York"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#2b2b36]/60 mb-1.5">
+                Seam device ID
+              </label>
+              <p className="text-xs text-[#2b2b36]/45 mb-2">
+                From the Seam dashboard: the connected lock&apos;s{" "}
+                <code className="text-xs bg-gray-100 px-1 rounded">device_id</code>. Leave empty
+                to skip automatic codes for this listing.
+              </p>
+              <input
+                type="text"
+                value={property.seam_device_id}
+                onChange={(e) => updateField("seam_device_id", e.target.value)}
+                placeholder="e.g. a5036385-adcb-41b5-88c2-dd8a702a0730"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20"
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={seamSyncing || !property.seam_device_id.trim()}
+              onClick={async () => {
+                if (!property.seam_device_id.trim()) {
+                  showToast("error", "Set a Seam device ID first.");
+                  return;
+                }
+                setSeamSyncing(true);
+                try {
+                  const result = await syncSeamAccessCodesForPropertyAction(property.id);
+                  const msg =
+                    result.message ??
+                    (result.updated > 0
+                      ? `Updated ${result.updated} reservation(s) on the lock.`
+                      : "No future confirmed stays to update.");
+                  showToast(result.ok ? "success" : "error", msg);
+                } catch (e) {
+                  showToast(
+                    "error",
+                    e instanceof Error ? e.message : "Seam sync failed."
+                  );
+                } finally {
+                  setSeamSyncing(false);
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-[#2b2b36] hover:bg-gray-50 disabled:opacity-50"
+            >
+              {seamSyncing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              Push codes to lock (future stays)
+            </button>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">

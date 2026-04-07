@@ -73,22 +73,31 @@ export function PropertyDetailBookingCard({
     return PropertyBookingDayButton;
   }, [nightlyPrices, basePriceNight]);
 
+  const quoteRangeKey = useMemo(() => {
+    if (!date?.from || !date?.to) return "";
+    return `${format(date.from, "yyyy-MM-dd")}_${format(date.to, "yyyy-MM-dd")}`;
+  }, [date?.from, date?.to]);
+
   useEffect(() => {
-    if (!date?.from || !date?.to) {
+    if (!quoteRangeKey) {
       setPriceQuote(null);
+      setQuoteLoading(false);
       return;
     }
-    const checkIn = format(date.from, "yyyy-MM-dd");
-    const checkOut = format(date.to, "yyyy-MM-dd");
+    const [checkIn, checkOut] = quoteRangeKey.split("_");
+    const ac = new AbortController();
+    const timeoutId = window.setTimeout(() => ac.abort(), 30_000);
     let cancelled = false;
     setQuoteLoading(true);
     fetch(
-      `/api/properties/${slug}/quote?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`
+      `/api/properties/${slug}/quote?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`,
+      { signal: ac.signal }
     )
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled || data.error) {
-          if (!cancelled) setPriceQuote(null);
+        if (cancelled) return;
+        if (data.error) {
+          setPriceQuote(null);
           return;
         }
         setPriceQuote({
@@ -101,12 +110,15 @@ export function PropertyDetailBookingCard({
         if (!cancelled) setPriceQuote(null);
       })
       .finally(() => {
+        window.clearTimeout(timeoutId);
         if (!cancelled) setQuoteLoading(false);
       });
     return () => {
       cancelled = true;
+      ac.abort();
+      window.clearTimeout(timeoutId);
     };
-  }, [slug, date?.from, date?.to]);
+  }, [slug, quoteRangeKey]);
 
   const displayNights = priceQuote?.nights ?? nights;
   const accommodationTotal =

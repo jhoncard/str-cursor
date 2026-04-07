@@ -23,10 +23,20 @@ export async function updateProperty(
     base_price_night?: number;
     max_guests?: number;
     status?: string;
+    check_in_time?: string;
+    check_out_time?: string;
+    timezone?: string;
+    seam_device_id?: string | null;
   }
 ) {
   await requireAdmin();
   const supabase = await createClient();
+
+  const { data: before } = await supabase
+    .from("properties")
+    .select("check_in_time, check_out_time, timezone, seam_device_id")
+    .eq("id", propertyId)
+    .maybeSingle();
 
   const { data: updated, error } = await supabase
     .from("properties")
@@ -40,7 +50,35 @@ export async function updateProperty(
       "Could not save changes. Sign in as an admin or refresh the page and try again.",
     );
   }
+
+  const accessChanged =
+    before != null &&
+    ((data.check_in_time !== undefined &&
+      String(data.check_in_time) !== String(before.check_in_time ?? "")) ||
+      (data.check_out_time !== undefined &&
+        String(data.check_out_time) !== String(before.check_out_time ?? "")) ||
+      (data.timezone !== undefined &&
+        String(data.timezone) !== String(before.timezone ?? "")) ||
+      (data.seam_device_id !== undefined &&
+        String(data.seam_device_id ?? "") !== String(before.seam_device_id ?? "")));
+
+  if (accessChanged) {
+    const { syncSeamAccessCodesForProperty } = await import(
+      "@/lib/seam/provision-booking"
+    );
+    await syncSeamAccessCodesForProperty(propertyId);
+  }
+
   return { success: true };
+}
+
+/** Re-push Seam access code windows for all future confirmed stays (after changing times or lock). */
+export async function syncSeamAccessCodesForPropertyAction(propertyId: string) {
+  await requireAdmin();
+  const { syncSeamAccessCodesForProperty } = await import(
+    "@/lib/seam/provision-booking"
+  );
+  return syncSeamAccessCodesForProperty(propertyId);
 }
 
 /** Pull nightly rates from PriceLabs into `availability.price_override` (requires env + listing ID). */

@@ -23,6 +23,8 @@ interface BookingConfirmationEmailProps {
   checkOut: string;
   confirmationCode: string;
   totalAmount: string;
+  /** Smart lock / Seam guest code when provisioned. */
+  doorCode?: string;
 }
 
 export function BookingConfirmationEmail({
@@ -32,6 +34,7 @@ export function BookingConfirmationEmail({
   checkOut,
   confirmationCode,
   totalAmount,
+  doorCode,
 }: BookingConfirmationEmailProps) {
   return (
     <Html>
@@ -69,6 +72,18 @@ export function BookingConfirmationEmail({
 
               <Text style={detailLabel}>Total Amount</Text>
               <Text style={detailValue}>${totalAmount}</Text>
+
+              {doorCode ? (
+                <>
+                  <Text style={detailLabel}>Door code</Text>
+                  <Text style={detailValue}>{doorCode}</Text>
+                  <Text style={detailNote}>
+                    This code is active from 30 minutes before your check-in
+                    time until 30 minutes after your check-out time (property
+                    local time). Save it for arrival.
+                  </Text>
+                </>
+              ) : null}
             </Section>
 
             <Hr style={hr} />
@@ -77,10 +92,9 @@ export function BookingConfirmationEmail({
               What to Expect
             </Heading>
             <Text style={paragraph}>
-              You will receive detailed check-in instructions 24 hours before
-              your arrival, including access codes and directions to the
-              property. If you have any questions before then, do not hesitate
-              to reach out.
+              {doorCode
+                ? "Bring your door code with you. You will also receive detailed check-in instructions and directions if we send them separately."
+                : "You will receive detailed check-in instructions before your arrival, including access information and directions to the property. If you have any questions before then, do not hesitate to reach out."}
             </Text>
 
             <Hr style={hr} />
@@ -199,6 +213,13 @@ const detailValue: React.CSSProperties = {
   color: "#2b2b36",
   fontSize: "15px",
   fontWeight: 600,
+  margin: "0 0 12px",
+};
+
+const detailNote: React.CSSProperties = {
+  color: "#6b7280",
+  fontSize: "12px",
+  lineHeight: "18px",
   margin: "0 0 12px",
 };
 

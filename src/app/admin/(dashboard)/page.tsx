@@ -1,35 +1,16 @@
 import { requireAdminPage } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { getAdminDashboardStats } from "@/lib/admin/bookings-from-db";
 import { DollarSign, CalendarCheck, Building2, Users } from "lucide-react";
 import Link from "next/link";
 
 export default async function AdminDashboard() {
   await requireAdminPage();
-  const supabase = await createClient();
-
-  const [bookingsRes, revenueRes, propertiesRes, guestsRes] =
-    await Promise.all([
-      supabase
-        .from("bookings")
-        .select("id", { count: "exact", head: true }),
-      supabase
-        .from("bookings")
-        .select("total_amount")
-        .eq("payment_status", "paid"),
-      supabase
-        .from("properties")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "active"),
-      supabase
-        .from("guests")
-        .select("id", { count: "exact", head: true }),
-    ]);
-
-  const totalBookings = bookingsRes.count ?? 0;
-  const totalRevenue =
-    revenueRes.data?.reduce((sum, b) => sum + (b.total_amount ?? 0), 0) ?? 0;
-  const activeProperties = propertiesRes.count ?? 0;
-  const totalGuests = guestsRes.count ?? 0;
+  const {
+    totalBookings,
+    totalRevenue,
+    activeProperties,
+    totalGuests,
+  } = await getAdminDashboardStats();
 
   const stats = [
     {

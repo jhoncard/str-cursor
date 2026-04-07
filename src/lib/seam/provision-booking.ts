@@ -1,0 +1,201 @@
+import "server-only";
+
+import { and, eq, gte } from "drizzle-orm";
+
+import { db } from "@/lib/db";
+import { bookings, properties } from "@/lib/db/schema";
+
+import { seamCreateAccessCode, seamUpdateAccessCode, generateFourDigitCode } from "./access-codes";
+import { computeBookingAccessWindowUtc, normalizeHHmm } from "./booking-window";
+import { isSeamConfigured } from "./http";
+
+export type ProvisionSeamResult = {
+  doorCode: string | null;
+  seamAccessError: string | null;
+};
+
+/**
+ * Create or update a Seam time-bound access code for a confirmed booking.
+ * Safe to call multiple times (e.g. after admin changes check-in/out times).
+ */
+export async function provisionSeamAccessCodeForBooking(
+  bookingId: string
+): Promise<ProvisionSeamResult> {
+  if (!isSeamConfigured()) {
+    return { doorCode: null, seamAccessError: null };
+  }
+
+  const row = await db.query.bookings.findFirst({
+    where: eq(bookings.id, bookingId),
+    columns: {
+      id: true,
+      confirmationCode: true,
+      checkIn: true,
+      checkOut: true,
+      bookingStatus: true,
+      seamAccessCodeId: true,
+      doorCode: true,
+    },
+    with: {
+      property: {
+        columns: {
+          name: true,
+          seamDeviceId: true,
+          checkInTime: true,
+          checkOutTime: true,
+          propertyTimezone: true,
+        },
+      },
+    },
+  });
+
+  if (!row) {
+    return { doorCode: null, seamAccessError: "Booking not found." };
+  }
+
+  if (row.bookingStatus !== "confirmed") {
+    await db
+      .update(bookings)
+      .set({ seamAccessError: null, updatedAt: new Date() })
+      .where(eq(bookings.id, bookingId));
+    return { doorCode: row.doorCode, seamAccessError: null };
+  }
+
+  const deviceId = row.property.seamDeviceId?.trim();
+  if (!deviceId) {
+    await db
+      .update(bookings)
+      .set({ seamAccessError: null, updatedAt: new Date() })
+      .where(eq(bookings.id, bookingId));
+    return { doorCode: null, seamAccessError: null };
+  }
+
+  const checkIn = String(row.checkIn);
+  const checkOut = String(row.checkOut);
+  const tz = row.property.propertyTimezone?.trim() || "America/New_York";
+  const checkInTime = normalizeHHmm(row.property.checkInTime, "16:00");
+  const checkOutTime = normalizeHHmm(row.property.checkOutTime, "11:00");
+
+  let startsAt: Date;
+  let endsAt: Date;
+  try {
+    ({ startsAt, endsAt } = computeBookingAccessWindowUtc({
+      checkIn,
+      checkOut,
+      checkInTime,
+      checkOutTime,
+      timeZone: tz,
+    }));
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await db
+      .update(bookings)
+      .set({ seamAccessError: msg, updatedAt: new Date() })
+      .where(eq(bookings.id, bookingId));
+    return { doorCode: null, seamAccessError: msg };
+  }
+
+  const name = `${row.property.name} · ${row.confirmationCode}`.slice(0, 120);
+
+  try {
+    if (row.seamAccessCodeId) {
+      const code = row.doorCode?.trim() || generateFourDigitCode();
+      await seamUpdateAccessCode({
+        accessCodeId: row.seamAccessCodeId,
+        name,
+        code,
+        startsAt,
+        endsAt,
+      });
+      await db
+        .update(bookings)
+        .set({
+          doorCode: code,
+          seamAccessError: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(bookings.id, bookingId));
+      return { doorCode: code, seamAccessError: null };
+    }
+
+    let code = generateFourDigitCode();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const created = await seamCreateAccessCode({
+          deviceId,
+          name,
+          code,
+          startsAt,
+          endsAt,
+        });
+        await db
+          .update(bookings)
+          .set({
+            seamAccessCodeId: created.accessCodeId,
+            doorCode: created.code,
+            seamAccessError: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(bookings.id, bookingId));
+        return { doorCode: created.code, seamAccessError: null };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("duplicate") || msg.includes("already") || msg.includes("conflict")) {
+          code = generateFourDigitCode();
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new Error("Could not allocate a unique door code after several attempts.");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[seam] provision failed:", msg);
+    await db
+      .update(bookings)
+      .set({ seamAccessError: msg, updatedAt: new Date() })
+      .where(eq(bookings.id, bookingId));
+    return { doorCode: row.doorCode, seamAccessError: msg };
+  }
+}
+
+/**
+ * Re-provision Seam codes for all future confirmed bookings on a property
+ * (call after changing check-in/out times or timezone in admin).
+ */
+export async function syncSeamAccessCodesForProperty(propertyId: string): Promise<{
+  ok: boolean;
+  updated: number;
+  message?: string;
+}> {
+  if (!isSeamConfigured()) {
+    return { ok: true, updated: 0, message: "Seam is not configured (SEAM_API_KEY)." };
+  }
+
+  const prop = await db.query.properties.findFirst({
+    where: eq(properties.id, propertyId),
+    columns: { seamDeviceId: true },
+  });
+  if (!prop?.seamDeviceId?.trim()) {
+    return { ok: true, updated: 0, message: "No Seam device ID on this property." };
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const list = await db.query.bookings.findMany({
+    where: and(
+      eq(bookings.propertyId, propertyId),
+      eq(bookings.bookingStatus, "confirmed"),
+      gte(bookings.checkOut, today)
+    ),
+    columns: { id: true },
+  });
+
+  let updated = 0;
+  for (const b of list) {
+    await provisionSeamAccessCodeForBooking(b.id);
+    updated += 1;
+  }
+
+  return { ok: true, updated };
+}

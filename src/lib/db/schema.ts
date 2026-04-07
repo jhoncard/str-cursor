@@ -37,6 +37,14 @@ export const properties = pgTable('properties', {
   status: propertyStatusEnum('status').default('active').notNull(),
   /** Secret token for public `.ics` export URL (Airbnb / VRBO import). */
   icalExportToken: uuid('ical_export_token').notNull().defaultRandom(),
+  /** Default guest check-in time (24h HH:mm) for access codes and messaging. */
+  checkInTime: varchar('check_in_time', { length: 5 }).default('16:00').notNull(),
+  /** Default guest check-out time (24h HH:mm). */
+  checkOutTime: varchar('check_out_time', { length: 5 }).default('11:00').notNull(),
+  /** IANA time zone for interpreting check-in/out times (e.g. America/New_York). */
+  propertyTimezone: varchar('timezone', { length: 64 }).default('America/New_York').notNull(),
+  /** Seam-connected lock `device_id` when using Seam access codes. */
+  seamDeviceId: varchar('seam_device_id', { length: 128 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -136,6 +144,12 @@ export const bookings = pgTable('bookings', {
   /** Snapshot of rental agreement at booking time (PDF public URL). */
   contractTextSnapshot: text('contract_text_snapshot'),
   source: bookingSourceEnum('source').default('direct').notNull(),
+  /** Seam access code id when a smart lock code was provisioned. */
+  seamAccessCodeId: varchar('seam_access_code_id', { length: 64 }),
+  /** Guest door code (typically 4 digits); shown in confirmation email. */
+  doorCode: varchar('door_code', { length: 16 }),
+  /** Last Seam API error message if provisioning failed (for admin debugging). */
+  seamAccessError: text('seam_access_error'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

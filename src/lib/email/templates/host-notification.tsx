@@ -22,6 +22,7 @@ interface HostNotificationEmailProps {
   totalAmount: string;
   confirmationCode: string;
   specialRequests?: string;
+  doorCode?: string;
 }
 
 export function HostNotificationEmail({
@@ -35,6 +36,7 @@ export function HostNotificationEmail({
   totalAmount,
   confirmationCode,
   specialRequests,
+  doorCode,
 }: HostNotificationEmailProps) {
   return (
     <Html>
@@ -75,6 +77,13 @@ export function HostNotificationEmail({
 
               <Text style={detailLabel}>Total Amount</Text>
               <Text style={detailValue}>${totalAmount}</Text>
+
+              {doorCode ? (
+                <>
+                  <Text style={detailLabel}>Guest door code (Seam)</Text>
+                  <Text style={detailValue}>{doorCode}</Text>
+                </>
+              ) : null}
             </Section>
 
             <Section style={detailsBox}>

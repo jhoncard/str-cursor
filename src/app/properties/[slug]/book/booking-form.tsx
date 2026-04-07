@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { propertiesData } from "@/data/properties";
 import Image from "next/image";
@@ -113,8 +113,16 @@ export default function BookingForm({
     (!contractRequired || agreeGuestContract);
   const currentStep: 1 | 2 = guestInfoComplete ? 2 : 1;
 
-  const checkInDate = parseDateOrFallback(checkInParam, "2026-05-01");
-  const checkOutDate = parseDateOrFallback(checkOutParam, "2026-05-06");
+  // Stable Date instances from URL params — without useMemo, new Date() each render
+  // retriggers the quote effect every frame and keeps "Loading price…" stuck.
+  const checkInDate = useMemo(
+    () => parseDateOrFallback(checkInParam, "2026-05-01"),
+    [checkInParam]
+  );
+  const checkOutDate = useMemo(
+    () => parseDateOrFallback(checkOutParam, "2026-05-06"),
+    [checkOutParam]
+  );
   const nights = Math.max(1, differenceInCalendarDays(checkOutDate, checkInDate));
 
   useEffect(() => {
@@ -125,15 +133,19 @@ export default function BookingForm({
     }
     const checkIn = format(checkInDate, "yyyy-MM-dd");
     const checkOut = format(checkOutDate, "yyyy-MM-dd");
+    const ac = new AbortController();
+    const timeoutId = window.setTimeout(() => ac.abort(), 30_000);
     let cancelled = false;
     setQuoteLoading(true);
     fetch(
-      `/api/properties/${property.slug}/quote?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`
+      `/api/properties/${property.slug}/quote?checkIn=${encodeURIComponent(checkIn)}&checkOut=${encodeURIComponent(checkOut)}`,
+      { signal: ac.signal }
     )
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled || data.error) {
-          if (!cancelled) setPriceQuote(null);
+        if (cancelled) return;
+        if (data.error) {
+          setPriceQuote(null);
           return;
         }
         setPriceQuote({
@@ -146,12 +158,15 @@ export default function BookingForm({
         if (!cancelled) setPriceQuote(null);
       })
       .finally(() => {
+        window.clearTimeout(timeoutId);
         if (!cancelled) setQuoteLoading(false);
       });
     return () => {
       cancelled = true;
+      ac.abort();
+      window.clearTimeout(timeoutId);
     };
-  }, [property, checkInDate, checkOutDate]);
+  }, [property?.slug, checkInDate, checkOutDate]);
 
   if (!property) {
     return <div>Property not found</div>;

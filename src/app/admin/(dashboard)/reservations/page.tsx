@@ -1,20 +1,6 @@
 import { requireAdminPage } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listBookingsForAdmin } from "@/lib/admin/bookings-from-db";
 import { format } from "date-fns";
-
-type Booking = {
-  id: string;
-  confirmation_code: string;
-  check_in: string;
-  check_out: string;
-  num_guests: number;
-  total_amount: number;
-  payment_status: string;
-  booking_status: string;
-  created_at: string;
-  guests: { first_name: string; last_name: string; email: string; phone: string } | null;
-  properties: { name: string; slug: string } | null;
-};
 
 const paymentBadge: Record<string, string> = {
   paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -32,16 +18,7 @@ const bookingBadge: Record<string, string> = {
 
 export default async function ReservationsPage() {
   await requireAdminPage();
-  const supabase = await createClient();
-
-  const { data: bookings } = await supabase
-    .from("bookings")
-    .select(
-      "*, guests:guest_id(first_name, last_name, email, phone), properties:property_id(name, slug)"
-    )
-    .order("created_at", { ascending: false });
-
-  const rows = (bookings ?? []) as Booking[];
+  const rows = await listBookingsForAdmin();
 
   return (
     <div>
@@ -76,61 +53,62 @@ export default async function ReservationsPage() {
                   </td>
                 </tr>
               )}
-              {rows.map((b) => (
+              {rows.map((b) => {
+                const totalDisplay = Number(b.totalAmount);
+                return (
                 <tr
                   key={b.id}
                   className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors"
                 >
                   <td className="px-5 py-4 whitespace-nowrap text-[#2b2b36]/60">
-                    {format(new Date(b.created_at), "MMM d, yyyy")}
+                    {format(new Date(b.createdAt), "MMM d, yyyy")}
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap">
                     <div className="font-medium text-[#2b2b36]">
-                      {b.guests
-                        ? `${b.guests.first_name} ${b.guests.last_name}`
-                        : "Unknown"}
+                      {`${b.guestFirstName} ${b.guestLastName}`}
                     </div>
                     <div className="text-xs text-[#2b2b36]/40">
-                      {b.guests?.email}
+                      {b.guestEmail}
                     </div>
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap text-[#2b2b36] font-medium">
-                    {b.properties?.name ?? "N/A"}
+                    {b.propertyName}
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap text-[#2b2b36]/60">
-                    {format(new Date(b.check_in), "MMM d, yyyy")}
+                    {format(new Date(String(b.checkIn)), "MMM d, yyyy")}
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap text-[#2b2b36]/60">
-                    {format(new Date(b.check_out), "MMM d, yyyy")}
+                    {format(new Date(String(b.checkOut)), "MMM d, yyyy")}
                   </td>
                   <td className="px-5 py-4 text-center text-[#2b2b36]/60">
-                    {b.num_guests}
+                    {b.numGuests}
                   </td>
                   <td className="px-5 py-4 text-right font-semibold text-[#2b2b36] whitespace-nowrap">
-                    ${b.total_amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    ${totalDisplay.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </td>
                   <td className="px-5 py-4 text-center">
                     <span
                       className={`inline-block px-2.5 py-1 rounded-lg text-xs font-semibold border capitalize ${
-                        paymentBadge[b.payment_status] ??
+                        paymentBadge[b.paymentStatus] ??
                         "bg-gray-50 text-gray-600 border-gray-200"
                       }`}
                     >
-                      {b.payment_status}
+                      {b.paymentStatus}
                     </span>
                   </td>
                   <td className="px-5 py-4 text-center">
                     <span
                       className={`inline-block px-2.5 py-1 rounded-lg text-xs font-semibold border capitalize ${
-                        bookingBadge[b.booking_status] ??
+                        bookingBadge[b.bookingStatus] ??
                         "bg-gray-50 text-gray-600 border-gray-200"
                       }`}
                     >
-                      {b.booking_status}
+                      {b.bookingStatus}
                     </span>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>

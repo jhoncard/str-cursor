@@ -1,5 +1,5 @@
 import { requireAdminPage } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listBookingsWithPaymentIntents } from "@/lib/admin/bookings-from-db";
 import { getStripe } from "@/lib/stripe";
 import { format } from "date-fns";
 
@@ -16,14 +16,10 @@ export default async function PaymentsPage() {
   await requireAdminPage();
 
   const stripe = getStripe();
-  const supabase = await createClient();
 
-  const [paymentIntents, bookingsRes] = await Promise.all([
+  const [paymentIntents, bookingRows] = await Promise.all([
     stripe.paymentIntents.list({ limit: 50 }),
-    supabase
-      .from("bookings")
-      .select("confirmation_code, payment_intent_id, guests:guest_id(email)")
-      .not("payment_intent_id", "is", null),
+    listBookingsWithPaymentIntents(),
   ]);
 
   const bookingMap = new Map<
@@ -31,13 +27,11 @@ export default async function PaymentsPage() {
     { confirmation_code: string; email: string | null }
   >();
 
-  for (const b of bookingsRes.data ?? []) {
-    if (b.payment_intent_id) {
-      const guest = b.guests as unknown as { email: string } | { email: string }[] | null;
-      const guestEmail = Array.isArray(guest) ? guest[0]?.email ?? null : guest?.email ?? null;
-      bookingMap.set(b.payment_intent_id, {
-        confirmation_code: b.confirmation_code,
-        email: guestEmail,
+  for (const b of bookingRows) {
+    if (b.paymentIntentId) {
+      bookingMap.set(b.paymentIntentId, {
+        confirmation_code: b.confirmationCode,
+        email: b.guestEmail,
       });
     }
   }

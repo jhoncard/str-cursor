@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { requireUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { listBookingsForGuestEmail } from "@/lib/admin/bookings-from-db";
 import {
   CalendarDays,
   Users,
@@ -169,23 +169,24 @@ export default async function DashboardPage({
 }) {
   const { notice } = await searchParams;
   const user = await requireUser();
-  const supabase = await createClient();
 
-  const { data: guest } = await supabase
-    .from("guests")
-    .select("id")
-    .eq("email", user.email!)
-    .single();
+  const rawBookings = user.email
+    ? await listBookingsForGuestEmail(user.email)
+    : [];
 
-  let bookings: Booking[] = [];
-  if (guest) {
-    const { data } = await supabase
-      .from("bookings")
-      .select("*, properties:property_id(name, slug)")
-      .eq("guest_id", guest.id)
-      .order("created_at", { ascending: false });
-    bookings = (data as Booking[]) ?? [];
-  }
+  const bookings: Booking[] = rawBookings.map((b) => ({
+    id: b.id,
+    confirmation_code: b.confirmationCode,
+    property_id: "",
+    check_in: String(b.checkIn),
+    check_out: String(b.checkOut),
+    num_guests: b.numGuests,
+    total_amount: String(b.totalAmount),
+    payment_status: b.paymentStatus,
+    booking_status: b.bookingStatus,
+    created_at: b.createdAt.toISOString(),
+    properties: { name: b.propertyName, slug: b.propertySlug },
+  }));
 
   const today = new Date().toISOString().split("T")[0];
   const upcoming = bookings.filter((b) => b.check_in >= today);

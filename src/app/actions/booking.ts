@@ -8,6 +8,7 @@ import { eachStayNight, isStayAvailable } from "@/lib/availability";
 import { sendEmail } from "@/lib/email";
 import { BookingConfirmationEmail } from "@/lib/email/templates/booking-confirmation";
 import { HostNotificationEmail } from "@/lib/email/templates/host-notification";
+import { provisionSeamAccessCodeForBooking } from "@/lib/seam/provision-booking";
 
 interface BookingData {
   propertyId: string;
@@ -102,7 +103,14 @@ export async function createBooking(data: BookingData) {
         });
     }
 
-    return { success: true, bookingId: newBooking.id, confirmationCode: newBooking.confirmationCode };
+    const seam = await provisionSeamAccessCodeForBooking(newBooking.id);
+
+    return {
+      success: true,
+      bookingId: newBooking.id,
+      confirmationCode: newBooking.confirmationCode,
+      doorCode: seam.doorCode,
+    };
   } catch (error) {
     console.error("Booking error:", error);
     return { success: false, error: "Failed to process booking." };
@@ -137,7 +145,12 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
 
     const dbProperty = await db.query.properties.findFirst({
       where: eq(properties.slug, payload.propertySlug),
-      columns: { id: true, name: true, maxGuests: true, guestContractPdfUrl: true },
+      columns: {
+        id: true,
+        name: true,
+        maxGuests: true,
+        guestContractPdfUrl: true,
+      },
     });
 
     if (!dbProperty) {
@@ -224,6 +237,8 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
         });
     }
 
+    const seam = await provisionSeamAccessCodeForBooking(newBooking.id);
+
     try {
       const hostEmail = process.env.HOST_EMAIL ?? "host@feathershouses.com";
       const propertyName = dbProperty.name;
@@ -239,6 +254,7 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
             checkOut: payload.checkOut,
             confirmationCode: newBooking.confirmationCode,
             totalAmount: payload.totalAmount.toFixed(2),
+            doorCode: seam.doorCode ?? undefined,
           }),
         }),
         sendEmail({
@@ -254,6 +270,7 @@ export async function finalizeBookingFromStripe(payload: FinalizeStripeBookingPa
             numGuests: payload.numGuests,
             totalAmount: payload.totalAmount.toFixed(2),
             confirmationCode: newBooking.confirmationCode,
+            doorCode: seam.doorCode ?? undefined,
           }),
         }),
       ]);
