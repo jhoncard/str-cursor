@@ -160,7 +160,7 @@ export async function uploadPropertyImageFile(formData: FormData) {
     throw new Error("Choose a file to upload.");
   }
 
-  assertImagePropertyImage(file);
+  await assertImagePropertyImage(file);
 
   const altText =
     typeof rawAlt === "string" && rawAlt.trim()
@@ -200,7 +200,7 @@ export async function uploadPropertyRentalAgreementPdf(formData: FormData) {
     throw new Error("Choose a PDF to upload.");
   }
 
-  assertRentalAgreementPdf(file);
+  await assertRentalAgreementPdf(file);
 
   const supabase = await createClient();
   const pid = propertyId.trim();
