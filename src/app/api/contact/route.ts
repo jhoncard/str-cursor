@@ -73,19 +73,16 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    // Security: log details server-side, but never echo error.message to the
+    // client — even in dev mode. Resend errors can include API-key prefixes,
+    // domain verification state, and other backend metadata.
+    // See security audit Finding #6 (CWE-209).
     console.error("Contact form error:", error);
-    const messageText =
-      error instanceof Error ? error.message : "Unknown error";
-    const resendHint =
-      "Verify RESEND_API_KEY and that EMAIL_FROM uses an address on a domain verified at resend.com/domains.";
     return NextResponse.json(
       {
-        error: isDev
-          ? messageText
-          : "Failed to send message. Please try again or email us directly.",
-        hint: isDev
-          ? resendHint
-          : `If this keeps happening, email us at ${CONTACT_FORM_INBOX_EMAIL}.`,
+        error:
+          "Failed to send message. Please try again or email us directly.",
+        hint: `If this keeps happening, email us at ${CONTACT_FORM_INBOX_EMAIL}.`,
       },
       { status: 500 },
     );
