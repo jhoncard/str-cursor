@@ -3,6 +3,11 @@ import { z } from "zod";
 import { isResendConfigured, sendEmail } from "@/lib/email";
 import { ContactFormEmail } from "@/lib/email/templates/contact-form";
 import { CONTACT_FORM_INBOX_EMAIL } from "@/lib/site-contact";
+import {
+  assertWithinLimit,
+  clientIpFromHeaders,
+  contactLimiter,
+} from "@/lib/ratelimit";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -19,6 +24,21 @@ const ContactSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    // Security: rate limit by client IP to stop attackers from emptying
+    // your Resend quota and getting your domain flagged for spam.
+    // See security audit Finding #4 (CWE-770).
+    const ip = clientIpFromHeaders(request.headers);
+    const limit = await assertWithinLimit(contactLimiter, `contact:${ip}`);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again in a few minutes." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfter) },
+        },
+      );
+    }
+
     let rawBody: unknown;
     try {
       rawBody = await request.json();

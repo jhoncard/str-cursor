@@ -8,6 +8,11 @@ import { computeStayAccommodationSubtotal } from "@/lib/pricing/stay-quote";
 import { db } from "@/lib/db";
 import { properties } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import {
+  assertWithinLimit,
+  checkoutLimiter,
+  clientIpFromHeaders,
+} from "@/lib/ratelimit";
 
 // Security: server-side schema validation. Caps every string so attacker
 // payloads cannot reach Stripe metadata (which has a 500-char per-value
@@ -36,6 +41,23 @@ function toCurrencyAmount(value: number) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Security: rate limit Stripe Checkout Session creation. Each call
+    // creates a real session in Stripe; mass creation triggers Stripe's
+    // own rate limiter (which then affects legitimate customers) and
+    // can be used to scrape property data.
+    // See security audit Finding #4 (CWE-770).
+    const ip = clientIpFromHeaders(request.headers);
+    const limit = await assertWithinLimit(checkoutLimiter, `checkout:${ip}`);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "Too many booking attempts. Please try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": String(limit.retryAfter) },
+        },
+      );
+    }
+
     let rawBody: unknown;
     try {
       rawBody = await request.json();
