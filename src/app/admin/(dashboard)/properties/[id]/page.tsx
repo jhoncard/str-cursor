@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { compressPropertyImage } from "@/lib/compress-image";
 import {
   updateProperty,
   addPropertyImage,
@@ -270,8 +271,20 @@ export default function PropertyEditorPage() {
     if (!file) return;
     setUploadingFile(true);
     try {
+      // Resize + re-encode in the browser before uploading. Phone photos
+      // can be 15-25 MB; the server validator caps at 3 MB. See feature
+      // doc Task 3 and src/lib/compress-image.ts.
+      let fileToUpload: File;
+      try {
+        fileToUpload = await compressPropertyImage(file);
+      } catch (compressionError) {
+        throw compressionError instanceof Error
+          ? compressionError
+          : new Error("Could not process this image. Try a different file.");
+      }
+
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", fileToUpload);
       fd.append("propertyId", id);
       fd.append("altText", newImageAlt.trim());
       await uploadPropertyImageFile(fd);
