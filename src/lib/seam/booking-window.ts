@@ -15,9 +15,16 @@ export function normalizeHHmm(raw: string | null | undefined, fallback: string):
 }
 
 /**
- * Access code is valid from 30 minutes before check-in time until 30 minutes after check-out time,
- * using the property IANA timezone.
+ * Access code is valid from 1 hour before check-in time until 1 hour
+ * after check-out time, using the property IANA timezone. This matches
+ * the convention Airbnb uses in its smart-lock integrations.
+ *
+ * Callers are expected to resolve the effective check-in/out times
+ * (property default vs. per-reservation override) before calling this
+ * — the function is oblivious to where the times came from.
  */
+const ACCESS_BUFFER_MINUTES = 60;
+
 export function computeBookingAccessWindowUtc(params: {
   checkIn: string;
   checkOut: string;
@@ -35,8 +42,8 @@ export function computeBookingAccessWindowUtc(params: {
   const checkInWall = new TZDate(iy, im - 1, id, ih, imin, params.timeZone);
   const checkOutWall = new TZDate(oy, om - 1, od, oh, omin, params.timeZone);
 
-  const startsAt = subMinutes(checkInWall, 30);
-  const endsAt = addMinutes(checkOutWall, 30);
+  const startsAt = subMinutes(checkInWall, ACCESS_BUFFER_MINUTES);
+  const endsAt = addMinutes(checkOutWall, ACCESS_BUFFER_MINUTES);
 
   if (endsAt.getTime() <= startsAt.getTime()) {
     throw new Error("Invalid access window: check-out must be after check-in.");
