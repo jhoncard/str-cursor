@@ -1,5 +1,8 @@
 import { Header } from "@/components/layout/header";
 
+/** Admin uses cookies (Supabase session) and must not be statically cached. */
+export const dynamic = "force-dynamic";
+
 export default function AdminRootLayout({
   children,
 }: {
