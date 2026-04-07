@@ -41,6 +41,7 @@
     "react-hook-form": "^7.72.0",
     "react-leaflet": "^5.0.0",
     "resend": "^6.10.0",
+    "seam": "^1.179.0",
     "server-only": "^0.0.1",
     "shadcn": "^4.1.2",
     "stripe": "^21.0.1",
