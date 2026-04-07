@@ -113,15 +113,16 @@ export default function BookingForm({
     (!contractRequired || agreeGuestContract);
   const currentStep: 1 | 2 = guestInfoComplete ? 2 : 1;
 
-  if (!property) {
-    return <div>Property not found</div>;
-  }
-
   const checkInDate = parseDateOrFallback(checkInParam, "2026-05-01");
   const checkOutDate = parseDateOrFallback(checkOutParam, "2026-05-06");
   const nights = Math.max(1, differenceInCalendarDays(checkOutDate, checkInDate));
 
   useEffect(() => {
+    if (!property) {
+      setPriceQuote(null);
+      setQuoteLoading(false);
+      return;
+    }
     const checkIn = format(checkInDate, "yyyy-MM-dd");
     const checkOut = format(checkOutDate, "yyyy-MM-dd");
     let cancelled = false;
@@ -150,7 +151,11 @@ export default function BookingForm({
     return () => {
       cancelled = true;
     };
-  }, [property.slug, checkInDate, checkOutDate]);
+  }, [property, checkInDate, checkOutDate]);
+
+  if (!property) {
+    return <div>Property not found</div>;
+  }
 
   const accommodationTotal =
     priceQuote?.accommodationSubtotal ?? property.basePriceNight * nights;

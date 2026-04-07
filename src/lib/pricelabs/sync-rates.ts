@@ -6,31 +6,12 @@ import { availability, properties } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 import { isPriceLabsConfigured } from "./config";
-import { priceLabsJson } from "./client";
-import { parseRatesFromUnknownPayload } from "./parse-rates";
+import { fetchListingRatesUncached, type ListingDailyRate } from "./listing-rates";
 
 /**
- * Build API path for listing rates. Set in `.env` to match PriceLabs docs for your program, e.g.:
- * `PRICELABS_RATES_PATH_TEMPLATE=/open-api/listings/{listingId}/calendar?start_date={from}&end_date={to}`
- *
- * Placeholders: `{listingId}`, `{from}`, `{to}` (yyyy-MM-dd).
- */
-function buildRatesPath(
-  listingId: string,
-  from: string,
-  to: string
-): string | null {
-  const template = process.env.PRICELABS_RATES_PATH_TEMPLATE?.trim();
-  if (!template) return null;
-  return template
-    .replace(/\{listingId\}/g, encodeURIComponent(listingId))
-    .replace(/\{from\}/g, encodeURIComponent(from))
-    .replace(/\{to\}/g, encodeURIComponent(to));
-}
-
-/**
- * Fetch nightly rates from PriceLabs and write `availability.price_override` (+ source pricelabs).
- * Requires `PRICELABS_API_KEY`, `PRICELABS_RATES_PATH_TEMPLATE`, and `properties.pricelabs_listing_id`.
+ * Fetch nightly rates from PriceLabs Customer API (`POST /v1/listing_prices`) and write
+ * `availability.price_override` (+ source pricelabs).
+ * Requires `PRICELABS_API_KEY`, `properties.pricelabs_listing_id`, and optional `PRICELABS_PMS` (default airbnb).
  */
 export async function syncPriceLabsRatesForProperty(propertyId: string): Promise<{
   ok: boolean;
@@ -62,19 +43,9 @@ export async function syncPriceLabsRatesForProperty(propertyId: string): Promise
   const from = format(new Date(), "yyyy-MM-dd");
   const to = format(addDays(new Date(), 365), "yyyy-MM-dd");
 
-  const path = buildRatesPath(listingId, from, to);
-  if (!path) {
-    return {
-      ok: false,
-      nightsUpdated: 0,
-      message:
-        "Set PRICELABS_RATES_PATH_TEMPLATE in .env to your program’s calendar/rates path (see .env.example).",
-    };
-  }
-
-  let payload: unknown;
+  let daily: ListingDailyRate[];
   try {
-    payload = await priceLabsJson(path);
+    daily = await fetchListingRatesUncached(listingId, from, to);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return {
@@ -84,24 +55,23 @@ export async function syncPriceLabsRatesForProperty(propertyId: string): Promise
     };
   }
 
-  const rates = parseRatesFromUnknownPayload(payload);
-  if (rates.length === 0) {
+  if (daily.length === 0) {
     return {
       ok: false,
       nightsUpdated: 0,
       message:
-        "No rates parsed from PriceLabs response. Check PRICELABS_RATES_PATH_TEMPLATE and response shape in src/lib/pricelabs/parse-rates.ts.",
+        "No nightly rates returned from PriceLabs. Confirm sync is ON for this listing and PRICELABS_PMS matches the listing (see .env.example).",
     };
   }
 
   let nightsUpdated = 0;
-  for (const { date, price } of rates) {
+  for (const { date, price, available } of daily) {
     await db
       .insert(availability)
       .values({
         propertyId,
         date,
-        status: "available",
+        status: available ? "available" : "blocked",
         priceOverride: String(price),
         source: "pricelabs",
       })
@@ -109,6 +79,7 @@ export async function syncPriceLabsRatesForProperty(propertyId: string): Promise
         target: [availability.propertyId, availability.date],
         set: {
           priceOverride: String(price),
+          status: available ? "available" : "blocked",
           source: "pricelabs",
           updatedAt: new Date(),
         },

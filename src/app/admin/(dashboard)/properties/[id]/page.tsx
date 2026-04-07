@@ -547,16 +547,19 @@ export default function PropertyEditorPage() {
                 PriceLabs dynamic pricing
               </label>
               <p className="text-xs text-[#2b2b36]/45 mb-2">
-                Paste the listing ID from your PriceLabs dashboard. Server env must include{" "}
-                <code className="text-xs bg-gray-100 px-1 rounded">PRICELABS_API_KEY</code> and{" "}
-                <code className="text-xs bg-gray-100 px-1 rounded">PRICELABS_RATES_PATH_TEMPLATE</code>{" "}
-                (see .env.example). Save, then sync nightly rates into this site.
+                Paste the listing ID from your PriceLabs dashboard. Server env needs{" "}
+                <code className="text-xs bg-gray-100 px-1 rounded">PRICELABS_API_KEY</code>
+                {" "}(Customer API uses{" "}
+                <code className="text-xs bg-gray-100 px-1 rounded">POST /v1/listing_prices</code>
+                ). Optional:{" "}
+                <code className="text-xs bg-gray-100 px-1 rounded">PRICELABS_PMS</code>{" "}
+                (default airbnb) if your PMS name differs. See .env.example. Save, then sync.
               </p>
               <input
                 type="text"
                 value={property.pricelabs_listing_id}
                 onChange={(e) => updateField("pricelabs_listing_id", e.target.value)}
-                placeholder="PriceLabs listing ID"
+                placeholder="Numeric listing ID (e.g. 661775…), not your API key"
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[#2b2b36] text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20 focus:border-[#2b2b36]/30 transition-all mb-3"
               />
               <button

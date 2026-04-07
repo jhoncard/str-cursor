@@ -15,7 +15,7 @@ export class PriceLabsApiError extends Error {
 
 /**
  * Low-level HTTP call to PriceLabs. Path is appended to `PRICELABS_API_BASE_URL`.
- * Auth: `PRICELABS_API_KEY` as Bearer by default; set `PRICELABS_AUTH_BEARER=false` to send `X-API-Key` instead (if required by your program).
+ * Customer API: set `PRICELABS_AUTH_BEARER=false` (default) and send `X-API-Key`.
  */
 export async function priceLabsRequest(
   path: string,

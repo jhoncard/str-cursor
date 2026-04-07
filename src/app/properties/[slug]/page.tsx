@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { addYears, format } from "date-fns";
 import { propertiesData } from "@/data/properties";
 import { getBlockedDates } from "@/lib/availability";
+import { getNightlyPriceMapForCalendar } from "@/lib/pricing/calendar-nightly-prices";
 import { db } from "@/lib/db";
 import { properties } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -62,6 +63,16 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
     rangeEnd
   );
   const blockedDateStrings = blockedDates.map((d) => format(d, "yyyy-MM-dd"));
+
+  const nightlyPrices =
+    dbProperty?.id != null
+      ? await getNightlyPriceMapForCalendar(
+          dbProperty.id,
+          rangeStart,
+          rangeEnd,
+          property.basePriceNight
+        )
+      : undefined;
 
   return (
     <div className="min-h-screen bg-[#f4f6f8] font-sans pb-24">
@@ -201,6 +212,7 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
                 serviceFee={property.serviceFee}
                 maxGuests={property.maxGuests}
                 blockedDateStrings={blockedDateStrings}
+                nightlyPrices={nightlyPrices}
               />
             </div>
           </div>
