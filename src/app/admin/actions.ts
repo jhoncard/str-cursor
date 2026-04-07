@@ -81,6 +81,66 @@ export async function syncSeamAccessCodesForPropertyAction(propertyId: string) {
   return syncSeamAccessCodesForProperty(propertyId);
 }
 
+/**
+ * Update a single reservation's per-booking check-in / check-out time
+ * overrides and re-provision its Seam access code window. Empty string
+ * in either field clears the override (reverts to property default).
+ *
+ * See feature doc Task 7.
+ */
+export async function updateBookingTimeOverrides(
+  bookingId: string,
+  data: {
+    checkInTimeOverride: string;
+    checkOutTimeOverride: string;
+  },
+) {
+  await requireAdmin();
+  const { db } = await import("@/lib/db");
+  const { bookings } = await import("@/lib/db/schema");
+  const { eq } = await import("drizzle-orm");
+
+  const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  const normalize = (raw: string): string | null => {
+    const s = raw.trim();
+    if (s === "") return null;
+    if (!TIME_RE.test(s)) {
+      throw new Error(`Invalid time format: "${s}". Use HH:mm (e.g. 14:00).`);
+    }
+    return s;
+  };
+
+  const checkInTimeOverride = normalize(data.checkInTimeOverride);
+  const checkOutTimeOverride = normalize(data.checkOutTimeOverride);
+
+  const result = await db
+    .update(bookings)
+    .set({
+      checkInTimeOverride,
+      checkOutTimeOverride,
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, bookingId))
+    .returning({ id: bookings.id });
+
+  if (result.length === 0) {
+    throw new Error("Reservation not found.");
+  }
+
+  // Push the new window to the smart lock. Safe to call when Seam is not
+  // configured — provisionSeamAccessCodeForBooking no-ops in that case.
+  const { provisionSeamAccessCodeForBooking } = await import(
+    "@/lib/seam/provision-booking"
+  );
+  const seam = await provisionSeamAccessCodeForBooking(bookingId);
+
+  return {
+    success: true,
+    doorCode: seam.doorCode,
+    seamAccessError: seam.seamAccessError,
+  };
+}
+
 /** Pull nightly rates from PriceLabs into `availability.price_override` (requires env + listing ID). */
 export async function syncPriceLabsRatesForPropertyAction(propertyId: string) {
   await requireAdmin();

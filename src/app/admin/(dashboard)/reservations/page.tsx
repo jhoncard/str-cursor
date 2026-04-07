@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { requireAdminPage } from "@/lib/auth";
 import { listBookingsForAdmin } from "@/lib/admin/bookings-from-db";
 import { format } from "date-fns";
@@ -38,6 +40,7 @@ export default async function ReservationsPage() {
                 <th className="px-5 py-4 font-semibold">Check-out</th>
                 <th className="px-5 py-4 font-semibold text-center">Guests</th>
                 <th className="px-5 py-4 font-semibold text-right">Total</th>
+                <th className="px-5 py-4 font-semibold text-right">Edit</th>
                 <th className="px-5 py-4 font-semibold text-center">Payment</th>
                 <th className="px-5 py-4 font-semibold text-center">Status</th>
               </tr>
@@ -46,7 +49,7 @@ export default async function ReservationsPage() {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-5 py-12 text-center text-[#2b2b36]/40"
                   >
                     No reservations found
@@ -85,6 +88,14 @@ export default async function ReservationsPage() {
                   </td>
                   <td className="px-5 py-4 text-right font-semibold text-[#2b2b36] whitespace-nowrap">
                     ${totalDisplay.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    <Link
+                      href={`/admin/reservations/${b.id}/edit`}
+                      className="text-xs font-medium text-[#2b2b36] underline hover:text-[#414152]"
+                    >
+                      Edit
+                    </Link>
                   </td>
                   <td className="px-5 py-4 text-center">
                     <span
