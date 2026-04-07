@@ -150,6 +150,10 @@ export const bookings = pgTable('bookings', {
   doorCode: varchar('door_code', { length: 16 }),
   /** Last Seam API error message if provisioning failed (for admin debugging). */
   seamAccessError: text('seam_access_error'),
+  /** Per-reservation check-in time override (HH:mm). NULL = use property default. */
+  checkInTimeOverride: varchar('check_in_time_override', { length: 5 }),
+  /** Per-reservation check-out time override (HH:mm). NULL = use property default. */
+  checkOutTimeOverride: varchar('check_out_time_override', { length: 5 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
