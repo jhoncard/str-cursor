@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 
 import { db } from "@/lib/db";
 import { properties } from "@/lib/db/schema";
@@ -6,6 +7,18 @@ import { eq } from "drizzle-orm";
 
 import { parseRatesFromUnknownPayload } from "@/lib/pricelabs/parse-rates";
 import { upsertPriceLabsNightlyRates } from "@/lib/pricelabs/sync-rates";
+
+/**
+ * Constant-time bearer-token comparison to avoid leaking the secret via
+ * response-time differences. See security audit Finding #5 (CWE-208).
+ */
+function bearerTokenMatches(provided: string | null, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 /**
  * Inbound nightly rates from PriceLabs (or a middleware you control).
@@ -26,7 +39,7 @@ export async function POST(request: NextRequest) {
 
   const auth = request.headers.get("authorization");
   const token = auth?.startsWith("Bearer ") ? auth.slice(7).trim() : null;
-  if (token !== secret) {
+  if (!bearerTokenMatches(token, secret)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
