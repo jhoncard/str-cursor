@@ -8,6 +8,7 @@ import { bookings, properties } from "@/lib/db/schema";
 import { seamCreateAccessCode, seamUpdateAccessCode, generateFourDigitCode } from "./access-codes";
 import { computeBookingAccessWindowUtc, normalizeHHmm } from "./booking-window";
 import { isSeamConfigured } from "./http";
+import { extractDoorCodeFromPhone } from "./phone-to-code";
 
 export type ProvisionSeamResult = {
   doorCode: string | null;
@@ -35,6 +36,8 @@ export async function provisionSeamAccessCodeForBooking(
       bookingStatus: true,
       seamAccessCodeId: true,
       doorCode: true,
+      checkInTimeOverride: true,
+      checkOutTimeOverride: true,
     },
     with: {
       property: {
@@ -44,6 +47,11 @@ export async function provisionSeamAccessCodeForBooking(
           checkInTime: true,
           checkOutTime: true,
           propertyTimezone: true,
+        },
+      },
+      guest: {
+        columns: {
+          phone: true,
         },
       },
     },
@@ -73,8 +81,16 @@ export async function provisionSeamAccessCodeForBooking(
   const checkIn = String(row.checkIn);
   const checkOut = String(row.checkOut);
   const tz = row.property.propertyTimezone?.trim() || "America/New_York";
-  const checkInTime = normalizeHHmm(row.property.checkInTime, "16:00");
-  const checkOutTime = normalizeHHmm(row.property.checkOutTime, "11:00");
+
+  // Effective check-in/out times: per-booking override if set, else property default.
+  const checkInTime = normalizeHHmm(
+    row.checkInTimeOverride ?? row.property.checkInTime,
+    "16:00",
+  );
+  const checkOutTime = normalizeHHmm(
+    row.checkOutTimeOverride ?? row.property.checkOutTime,
+    "11:00",
+  );
 
   let startsAt: Date;
   let endsAt: Date;
@@ -97,9 +113,16 @@ export async function provisionSeamAccessCodeForBooking(
 
   const name = `${row.property.name} · ${row.confirmationCode}`.slice(0, 120);
 
+  // Phone-derived code (last 4 digits). Falls back to random when the guest
+  // phone is missing, too short, or a weak code like '0000'. See Task 3.
+  const phoneCode = extractDoorCodeFromPhone(row.guest?.phone);
+
   try {
     if (row.seamAccessCodeId) {
-      const code = row.doorCode?.trim() || generateFourDigitCode();
+      // Existing code: keep whatever is already stored on the booking unless
+      // we have no code at all, in which case prefer phone-derived.
+      const code =
+        row.doorCode?.trim() || phoneCode || generateFourDigitCode();
       await seamUpdateAccessCode({
         accessCodeId: row.seamAccessCodeId,
         name,
@@ -118,7 +141,10 @@ export async function provisionSeamAccessCodeForBooking(
       return { doorCode: code, seamAccessError: null };
     }
 
-    let code = generateFourDigitCode();
+    // First attempt uses phone-derived code. Subsequent attempts fall back
+    // to random because the collision is almost certainly another booking
+    // on the same lock using the same last-4 digits.
+    let code = phoneCode ?? generateFourDigitCode();
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         const created = await seamCreateAccessCode({
