@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import type { UserProfile } from "@/lib/auth";
+import type { UserProfile } from "@/lib/user-profile";
 
 export function UserMenu({ user }: { user: UserProfile }) {
   const [open, setOpen] = useState(false);

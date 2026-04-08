@@ -18,6 +18,15 @@ import { SimilarProperties } from "@/components/property/similar-properties";
 import { PropertyFaq } from "@/components/property/property-faq";
 import { MobileBookingBar } from "@/components/property/mobile-booking-bar";
 import { VacationRentalJsonLd, BreadcrumbJsonLd } from "@/components/seo/json-ld";
+import { getPropertyGalleryImageUrlsBySlug } from "@/lib/property-gallery-images";
+
+async function resolveGalleryImages(
+  slug: string,
+  fallback: string[]
+): Promise<string[]> {
+  const fromDb = await getPropertyGalleryImageUrlsBySlug(slug);
+  return fromDb.length > 0 ? fromDb : fallback;
+}
 
 export async function generateMetadata({
   params,
@@ -31,13 +40,15 @@ export async function generateMetadata({
     return { title: "Property Not Found" };
   }
 
+  const images = await resolveGalleryImages(slug, property.images);
+
   return {
     title: property.name,
     description: property.shortDescription,
     openGraph: {
       title: `${property.name} | Feathers Houses`,
       description: property.shortDescription,
-      images: property.images[0] ? [{ url: property.images[0] }] : [],
+      images: images[0] ? [{ url: images[0] }] : [],
     },
   };
 }
@@ -49,6 +60,9 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
   if (!property) {
     notFound();
   }
+
+  const galleryImages = await resolveGalleryImages(slug, property.images);
+  const propertyForDisplay = { ...property, images: galleryImages };
 
   const dbProperty = await db.query.properties.findFirst({
     where: eq(properties.slug, slug),
@@ -76,7 +90,7 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
 
   return (
     <div className="min-h-screen bg-[#f4f6f8] font-sans pb-24">
-      <VacationRentalJsonLd property={property} />
+      <VacationRentalJsonLd property={propertyForDisplay} />
       <BreadcrumbJsonLd
         items={[
           { name: "Home", href: "/" },
@@ -116,7 +130,7 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
           </div>
         </div>
 
-        <ImageGallery images={property.images} propertyName={property.name} />
+        <ImageGallery images={galleryImages} propertyName={property.name} />
 
         <div className="flex flex-col lg:flex-row gap-12 mt-12 relative">
           

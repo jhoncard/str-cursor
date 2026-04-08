@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { propertiesData } from "@/data/properties";
 import Image from "next/image";
 import Link from "next/link";
+import { isAirbnbOptimizerHost } from "@/lib/remote-image";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { Check } from "lucide-react";
 
@@ -461,7 +462,14 @@ export default function BookingForm({
         <div className="w-full lg:w-[400px]">
           <div className="sticky top-8 bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 flex flex-col gap-6">
             <div className="flex items-start gap-4">
-              <Image src={property.images[0]} alt={property.name} width={100} height={100} className="rounded-xl object-cover h-[100px]" />
+              <Image
+                src={property.images[0]}
+                alt={property.name}
+                width={100}
+                height={100}
+                className="rounded-xl object-cover h-[100px]"
+                unoptimized={isAirbnbOptimizerHost(property.images[0])}
+              />
               <div className="flex flex-col">
                 <span className="text-xs text-gray-500 font-medium mb-1">{property.propertyType.replace("_", " ").toUpperCase()}</span>
                 <span className="font-semibold text-[#2b2b36] leading-tight">{property.name}</span>

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { isAirbnbOptimizerHost } from "@/lib/remote-image";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 
 interface SessionData {
@@ -133,6 +134,7 @@ export default function SuccessContent() {
                   width={100}
                   height={100}
                   className="rounded-xl object-cover h-[100px] flex-shrink-0"
+                  unoptimized={isAirbnbOptimizerHost(meta.propertyImage)}
                 />
               )}
               <div className="flex flex-col gap-1">

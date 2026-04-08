@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { isAirbnbOptimizerHost } from "@/lib/remote-image";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import { Camera } from "lucide-react";
@@ -43,6 +44,7 @@ export function ImageGallery({ images, propertyName }: ImageGalleryProps) {
             fill
             className="object-cover hover:brightness-95 transition-all"
             priority
+            unoptimized={isAirbnbOptimizerHost(displayImages[0])}
           />
         </button>
 
@@ -59,6 +61,7 @@ export function ImageGallery({ images, propertyName }: ImageGalleryProps) {
                 alt={`${propertyName} ${i + 2}`}
                 fill
                 className="object-cover hover:brightness-95 transition-all"
+                unoptimized={isAirbnbOptimizerHost(src)}
               />
             </button>
           ))}

@@ -5,14 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import type { UserProfile } from "@/lib/user-profile";
 
-export type UserProfile = {
-  id: string;
-  email: string | null;
-  fullName: string | null;
-  avatarUrl: string | null;
-  role: "guest" | "admin";
-};
+export type { UserProfile };
 
 export async function getUser(): Promise<UserProfile | null> {
   const supabase = await createClient();

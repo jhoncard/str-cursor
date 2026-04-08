@@ -154,9 +154,9 @@ export async function addPropertyImage(
   altText: string
 ) {
   await requireAdmin();
-  const supabase = await createClient();
+  const db = createServiceRoleSupabase() ?? (await createClient());
 
-  const { data: maxOrder } = await supabase
+  const { data: maxOrder } = await db
     .from("property_images")
     .select("sort_order")
     .eq("property_id", propertyId)
@@ -166,7 +166,7 @@ export async function addPropertyImage(
 
   const nextOrder = (maxOrder?.sort_order ?? -1) + 1;
 
-  const { error } = await supabase.from("property_images").insert({
+  const { error } = await db.from("property_images").insert({
     property_id: propertyId,
     url,
     alt_text: altText,
@@ -180,9 +180,9 @@ export async function addPropertyImage(
 
 export async function deletePropertyImage(imageId: string) {
   await requireAdmin();
-  const supabase = await createClient();
+  const db = createServiceRoleSupabase() ?? (await createClient());
 
-  const { data: row } = await supabase
+  const { data: row } = await db
     .from("property_images")
     .select("url")
     .eq("id", imageId)
@@ -191,16 +191,13 @@ export async function deletePropertyImage(imageId: string) {
   const storagePath =
     row?.url ? extractStoragePathFromPublicUrl(row.url) : null;
   if (storagePath) {
-    const storageClient = createServiceRoleSupabase() ?? supabase;
+    const storageClient = createServiceRoleSupabase() ?? db;
     await storageClient.storage
       .from(PROPERTY_IMAGES_BUCKET)
       .remove([storagePath]);
   }
 
-  const { error } = await supabase
-    .from("property_images")
-    .delete()
-    .eq("id", imageId);
+  const { error } = await db.from("property_images").delete().eq("id", imageId);
 
   if (error) throw new Error(error.message);
   return { success: true };

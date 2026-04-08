@@ -1,8 +1,8 @@
+"use client";
+
 // NOTE: this file is client-safe. Do NOT import "server-only" or any
 // module from src/lib/supabase or src/lib/db here — those are server
 // modules and will break the client bundle.
-
-import imageCompression from "browser-image-compression";
 
 /**
  * Resize and re-encode an uploaded photo in the browser before it is
@@ -47,12 +47,19 @@ export async function compressPropertyImage(file: File): Promise<File> {
     );
   }
 
+  const { default: imageCompression } = await import(
+    "browser-image-compression"
+  );
+
+  // useWebWorker: true breaks Next.js/Webpack (worker chunks → runtime
+  // "__webpack_modules__[moduleId] is not a function"). Main-thread
+  // compression is fine for admin single-file uploads.
   const compressed = await imageCompression(file, {
     maxSizeMB: SAFETY_MAX_SIZE_MB,
     maxWidthOrHeight: TARGET_LONGEST_EDGE_PX,
     initialQuality: TARGET_QUALITY,
     fileType: "image/webp",
-    useWebWorker: true,
+    useWebWorker: false,
     alwaysKeepResolution: false,
   });
 

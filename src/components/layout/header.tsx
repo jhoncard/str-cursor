@@ -1,11 +1,7 @@
 import Link from "next/link";
-import { MobileNav } from "./mobile-nav";
-import { UserMenu } from "./user-menu";
-import { getUser } from "@/lib/auth";
+import { HeaderAuthSection } from "./header-auth-section";
 
 export async function Header() {
-  const user = await getUser();
-
   return (
     <header className="px-6 lg:px-12 py-6 flex items-center justify-between max-w-[1600px] mx-auto w-full">
       <Link href="/" className="flex flex-col text-[#2b2b36] cursor-pointer">
@@ -35,27 +31,7 @@ export async function Header() {
         </Link>
       </nav>
 
-      <div className="flex items-center gap-4">
-        {user ? (
-          <UserMenu user={user} />
-        ) : (
-          <div className="hidden sm:flex items-center gap-2">
-            <Link
-              href="/register"
-              className="px-5 py-2.5 rounded-full bg-[#2b2b36] text-white text-sm font-semibold hover:bg-[#363645] transition-all"
-            >
-              Sign up
-            </Link>
-            <Link
-              href="/login"
-              className="px-5 py-2.5 rounded-full border border-[#2b2b36] text-[#2b2b36] text-sm font-medium hover:bg-[#2b2b36] hover:text-white transition-all"
-            >
-              Sign in
-            </Link>
-          </div>
-        )}
-        <MobileNav user={user} />
-      </div>
+      <HeaderAuthSection />
     </header>
   );
 }

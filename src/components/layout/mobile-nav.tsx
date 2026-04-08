@@ -10,7 +10,7 @@ import {
   SheetTitle,
   SheetClose,
 } from "@/components/ui/sheet";
-import type { UserProfile } from "@/lib/auth";
+import type { UserProfile } from "@/lib/user-profile";
 
 const navLinks = [
   { name: "Home", href: "/" },
