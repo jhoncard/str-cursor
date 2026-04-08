@@ -133,11 +133,17 @@ export async function updateBookingTimeOverrides(
     "@/lib/seam/provision-booking"
   );
   const seam = await provisionSeamAccessCodeForBooking(bookingId);
+  if (seam.seamAccessError) {
+    console.error(
+      "[admin] Seam provision after time override:",
+      seam.seamAccessError,
+    );
+  }
 
   return {
     success: true,
     doorCode: seam.doorCode,
-    seamAccessError: seam.seamAccessError,
+    lockUpdateFailed: Boolean(seam.seamAccessError),
   };
 }
 

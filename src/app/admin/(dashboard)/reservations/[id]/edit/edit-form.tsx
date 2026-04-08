@@ -27,7 +27,7 @@ export function EditReservationForm({
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<
     | { kind: "idle" }
-    | { kind: "ok"; doorCode: string | null; seamError: string | null }
+    | { kind: "ok"; doorCode: string | null; lockUpdateFailed: boolean }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
 
@@ -42,7 +42,7 @@ export function EditReservationForm({
       setResult({
         kind: "ok",
         doorCode: res.doorCode,
-        seamError: res.seamAccessError,
+        lockUpdateFailed: res.lockUpdateFailed,
       });
       router.refresh();
     } catch (e) {
@@ -129,9 +129,9 @@ export function EditReservationForm({
               <p className="font-medium">
                 Saved. Door code: {result.doorCode ?? "(not provisioned)"}
               </p>
-              {result.seamError && (
+              {result.lockUpdateFailed && (
                 <p className="text-xs mt-1 text-emerald-700">
-                  Seam warning: {result.seamError}
+                  Lock update failed — see admin logs.
                 </p>
               )}
             </div>

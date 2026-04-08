@@ -8,12 +8,17 @@ import { asc, eq } from "drizzle-orm";
 export async function getPropertyGalleryImageUrlsBySlug(
   slug: string
 ): Promise<string[]> {
-  const rows = await db
-    .select({ url: propertyImages.url })
-    .from(propertyImages)
-    .innerJoin(properties, eq(propertyImages.propertyId, properties.id))
-    .where(eq(properties.slug, slug))
-    .orderBy(asc(propertyImages.sortOrder));
+  try {
+    const rows = await db
+      .select({ url: propertyImages.url })
+      .from(propertyImages)
+      .innerJoin(properties, eq(propertyImages.propertyId, properties.id))
+      .where(eq(properties.slug, slug))
+      .orderBy(asc(propertyImages.sortOrder));
 
-  return rows.map((r) => r.url);
+    return rows.map((r) => r.url);
+  } catch (err) {
+    console.error("[property-gallery-images] DB gallery query failed:", err);
+    return [];
+  }
 }

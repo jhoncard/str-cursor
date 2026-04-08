@@ -14,7 +14,10 @@ export function HeaderAuthSection() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          signal: AbortSignal.timeout(12_000),
+        });
         if (!res.ok) {
           if (!cancelled) setReady(true);
           return;

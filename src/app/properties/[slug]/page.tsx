@@ -64,29 +64,36 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
   const galleryImages = await resolveGalleryImages(slug, property.images);
   const propertyForDisplay = { ...property, images: galleryImages };
 
-  const dbProperty = await db.query.properties.findFirst({
-    where: eq(properties.slug, slug),
-    columns: { id: true },
-  });
-
   const rangeStart = new Date();
   const rangeEnd = addYears(rangeStart, 2);
-  const blockedDates = await getBlockedDates(
-    dbProperty?.id ?? property.id,
-    rangeStart,
-    rangeEnd
-  );
-  const blockedDateStrings = blockedDates.map((d) => format(d, "yyyy-MM-dd"));
+  let dbProperty: { id: string } | undefined;
+  let blockedDateStrings: string[] = [];
+  let nightlyPrices:
+    | Awaited<ReturnType<typeof getNightlyPriceMapForCalendar>>
+    | undefined;
 
-  const nightlyPrices =
-    dbProperty?.id != null
-      ? await getNightlyPriceMapForCalendar(
-          dbProperty.id,
-          rangeStart,
-          rangeEnd,
-          property.basePriceNight
-        )
-      : undefined;
+  try {
+    dbProperty = await db.query.properties.findFirst({
+      where: eq(properties.slug, slug),
+      columns: { id: true },
+    });
+    const blockedDates = await getBlockedDates(
+      dbProperty?.id ?? property.id,
+      rangeStart,
+      rangeEnd
+    );
+    blockedDateStrings = blockedDates.map((d) => format(d, "yyyy-MM-dd"));
+    if (dbProperty?.id != null) {
+      nightlyPrices = await getNightlyPriceMapForCalendar(
+        dbProperty.id,
+        rangeStart,
+        rangeEnd,
+        property.basePriceNight
+      );
+    }
+  } catch (err) {
+    console.error("[properties/[slug]] database load failed:", err);
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f6f8] font-sans pb-24">

@@ -45,7 +45,6 @@
     "resend": "^6.10.0",
     "seam": "^1.179.0",
     "server-only": "^0.0.1",
-    "shadcn": "^4.1.2",
     "stripe": "^21.0.1",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
@@ -57,7 +56,9 @@
   },
   "pnpm": {
     "overrides": {
-      "esbuild@<0.25.0": "^0.25.0"
+      "esbuild@<0.25.0": "^0.25.0",
+      "hono@<4.12.12": "^4.12.12",
+      "@hono/node-server@<1.19.13": "^1.19.13"
     }
   },
   "devDependencies": {
@@ -72,6 +73,7 @@
     "playwright": "^1.59.1",
     "postcss": "^8",
     "postcss-import": "^16.1.1",
+    "shadcn": "^4.1.2",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
     "typescript": "^5"

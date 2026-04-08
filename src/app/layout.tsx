@@ -5,6 +5,20 @@ import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Footer } from "@/components/layout/footer";
 
+const DEFAULT_SITE_URL = "https://feathershouses.com";
+
+/** Avoid crashing the app when NEXT_PUBLIC_APP_URL is host-only or invalid. */
+function getMetadataBase(): URL {
+  let raw = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!raw) return new URL(DEFAULT_SITE_URL);
+  if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
+  try {
+    return new URL(raw);
+  } catch {
+    return new URL(DEFAULT_SITE_URL);
+  }
+}
+
 const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 const geistSans = localFont({
@@ -19,9 +33,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://feathershouses.com"
-  ),
+  metadataBase: getMetadataBase(),
   title: {
     template: "%s | Feathers Houses",
     default: "Feathers Houses | Direct Booking Vacation Rentals in Tampa Bay",

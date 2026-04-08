@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { propertiesData } from "@/data/properties";
+import {
+  assertWithinLimit,
+  checkoutLimiter,
+  clientIpFromHeaders,
+} from "@/lib/ratelimit";
 import { computeStayAccommodationSubtotal } from "@/lib/pricing/stay-quote";
 import { db } from "@/lib/db";
 import { properties } from "@/lib/db/schema";
@@ -18,11 +24,19 @@ export async function GET(
   const checkIn = request.nextUrl.searchParams.get("checkIn");
   const checkOut = request.nextUrl.searchParams.get("checkOut");
 
-  if (!checkIn || !checkOut) {
-    return NextResponse.json(
-      { error: "checkIn and checkOut are required (yyyy-MM-dd)." },
-      { status: 400 }
-    );
+  const ip = clientIpFromHeaders(request.headers);
+  const lim = await assertWithinLimit(checkoutLimiter, `quote:${ip}`);
+  if (!lim.ok) {
+    return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+  }
+
+  const QuoteSchema = z.object({
+    checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  });
+  const parsed = QuoteSchema.safeParse({ checkIn, checkOut });
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid dates." }, { status: 400 });
   }
 
   const staticProp = propertiesData.find((p) => p.slug === slug);
@@ -45,8 +59,8 @@ export async function GET(
   try {
     const acc = await computeStayAccommodationSubtotal(
       row.id,
-      checkIn,
-      checkOut,
+      parsed.data.checkIn,
+      parsed.data.checkOut,
       { fallbackBasePriceNight: staticProp.basePriceNight }
     );
     const cleaningFee = Number(row.cleaningFee ?? staticProp.cleaningFee ?? 0);
@@ -55,8 +69,8 @@ export async function GET(
 
     return NextResponse.json({
       slug,
-      checkIn,
-      checkOut,
+      checkIn: parsed.data.checkIn,
+      checkOut: parsed.data.checkOut,
       nights: acc.nights,
       nightly: acc.nightly,
       basePriceNight: acc.basePriceNight,
@@ -67,7 +81,10 @@ export async function GET(
       currency: "usd",
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Could not compute quote.";
-    return NextResponse.json({ error: msg }, { status: 400 });
+    console.error("[quote] compute failed:", e);
+    return NextResponse.json(
+      { error: "Could not compute quote." },
+      { status: 400 },
+    );
   }
 }

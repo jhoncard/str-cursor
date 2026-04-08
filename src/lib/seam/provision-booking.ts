@@ -8,7 +8,6 @@ import { bookings, properties } from "@/lib/db/schema";
 import { seamCreateAccessCode, seamUpdateAccessCode, generateFourDigitCode } from "./access-codes";
 import { computeBookingAccessWindowUtc, normalizeHHmm } from "./booking-window";
 import { isSeamConfigured } from "./http";
-import { extractDoorCodeFromPhone } from "./phone-to-code";
 
 export type ProvisionSeamResult = {
   doorCode: string | null;
@@ -47,11 +46,6 @@ export async function provisionSeamAccessCodeForBooking(
           checkInTime: true,
           checkOutTime: true,
           propertyTimezone: true,
-        },
-      },
-      guest: {
-        columns: {
-          phone: true,
         },
       },
     },
@@ -113,16 +107,9 @@ export async function provisionSeamAccessCodeForBooking(
 
   const name = `${row.property.name} · ${row.confirmationCode}`.slice(0, 120);
 
-  // Phone-derived code (last 4 digits). Falls back to random when the guest
-  // phone is missing, too short, or a weak code like '0000'. See Task 3.
-  const phoneCode = extractDoorCodeFromPhone(row.guest?.phone);
-
   try {
     if (row.seamAccessCodeId) {
-      // Existing code: keep whatever is already stored on the booking unless
-      // we have no code at all, in which case prefer phone-derived.
-      const code =
-        row.doorCode?.trim() || phoneCode || generateFourDigitCode();
+      const code = row.doorCode?.trim() || generateFourDigitCode();
       await seamUpdateAccessCode({
         accessCodeId: row.seamAccessCodeId,
         name,
@@ -141,10 +128,7 @@ export async function provisionSeamAccessCodeForBooking(
       return { doorCode: code, seamAccessError: null };
     }
 
-    // First attempt uses phone-derived code. Subsequent attempts fall back
-    // to random because the collision is almost certainly another booking
-    // on the same lock using the same last-4 digits.
-    let code = phoneCode ?? generateFourDigitCode();
+    let code = row.doorCode?.trim() || generateFourDigitCode();
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         const created = await seamCreateAccessCode({

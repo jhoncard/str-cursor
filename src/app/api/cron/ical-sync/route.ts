@@ -35,8 +35,8 @@ export async function GET(request: Request) {
   try {
     return NextResponse.json(await runSync());
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[cron/ical-sync] failed:", err);
+    return NextResponse.json({ error: "iCal sync failed." }, { status: 500 });
   }
 }
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   try {
     return NextResponse.json(await runSync());
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[cron/ical-sync] failed:", err);
+    return NextResponse.json({ error: "iCal sync failed." }, { status: 500 });
   }
 }
