@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { isAppleAuthEnabled } from "@/lib/auth-providers";
 import { oauthSignInAndRedirect } from "@/lib/supabase/oauth-sign-in";
+import { createClient } from "@/lib/supabase/client";
+import { sanitizeRedirectPath } from "@/lib/sanitize-redirect-path";
+import { Mail } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -46,20 +49,45 @@ function AppleIcon() {
 export default function LoginForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") ?? "/dashboard";
+  const nextPath = sanitizeRedirectPath(redirect, "/dashboard");
   const error = searchParams.get("error");
-  const [loading, setLoading] = useState<"google" | "apple" | null>(null);
+  const [loading, setLoading] = useState<"google" | "apple" | "email" | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
 
   async function handleOAuth(provider: "google" | "apple") {
     setAuthError(null);
     setLoading(provider);
-    const next = encodeURIComponent(redirect);
+    const next = encodeURIComponent(nextPath);
     const callbackUrl = `${window.location.origin}/auth/callback?next=${next}`;
     const result = await oauthSignInAndRedirect(provider, callbackUrl);
     setLoading(null);
     if (!result.ok) {
       setAuthError(result.message);
     }
+  }
+
+  async function handleEmailSignIn(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setAuthError(null);
+    const em = loginEmail.trim();
+    if (!em || !loginPassword) {
+      setAuthError("Enter your email and password.");
+      return;
+    }
+    setLoading("email");
+    const supabase = createClient();
+    const { error: signErr } = await supabase.auth.signInWithPassword({
+      email: em,
+      password: loginPassword,
+    });
+    setLoading(null);
+    if (signErr) {
+      setAuthError(signErr.message);
+      return;
+    }
+    window.location.href = nextPath;
   }
 
   return (
@@ -144,6 +172,57 @@ export default function LoginForm() {
               </button>
             </>
           ) : null}
+
+          <div className="flex items-center gap-4 py-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs text-gray-400 select-none">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          <form onSubmit={handleEmailSignIn} className="space-y-3 rounded-xl border border-gray-100 bg-[#fafafa] p-4">
+            <p className="flex items-center gap-2 text-xs font-medium text-gray-600">
+              <Mail className="w-3.5 h-3.5" aria-hidden />
+              Sign in with email
+            </p>
+            <input
+              type="email"
+              autoComplete="email"
+              placeholder="Email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              disabled={loading !== null}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20 disabled:opacity-60"
+            />
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder="Password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              disabled={loading !== null}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2b2b36]/20 disabled:opacity-60"
+            />
+            <div className="text-right">
+              <Link
+                href="/auth/forgot-password"
+                className="text-xs font-medium text-[#2b2b36] underline underline-offset-2 hover:text-[#363645]"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <button
+              type="submit"
+              disabled={loading !== null}
+              className="w-full rounded-lg bg-[#2b2b36] py-2.5 text-sm font-medium text-white hover:bg-[#363645] disabled:opacity-60"
+            >
+              {loading === "email" ? "Signing in…" : "Sign in with email"}
+            </button>
+            <p className="text-xs text-gray-500 text-center">
+              <Link href="/register" className="text-[#2b2b36] font-medium underline underline-offset-2">
+                Need an account? Sign up
+              </Link>
+            </p>
+          </form>
         </div>
 
         <p className="mt-8 text-center text-xs text-gray-400 leading-relaxed">
