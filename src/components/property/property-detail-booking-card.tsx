@@ -191,11 +191,11 @@ export function PropertyDetailBookingCard({
             </div>
           </PopoverTrigger>
           <PopoverContent
-            className="w-[720px] max-w-[calc(100vw-2rem)] p-0 bg-white border border-gray-100 shadow-xl z-50 rounded-2xl overflow-hidden flex flex-col"
+            className="w-fit max-w-[calc(100vw-2rem)] gap-0 p-0 bg-white border border-gray-100 shadow-xl z-50 rounded-2xl overflow-hidden flex flex-col"
             align="end"
             sideOffset={8}
           >
-            <div className="[--cell-size:3rem] p-3 pb-0">
+            <div className="[--cell-size:2.75rem] p-2.5 pb-0">
               <Calendar
                 locale={enUS}
                 initialFocus
@@ -203,7 +203,7 @@ export function PropertyDetailBookingCard({
                 defaultMonth={pendingRange?.from ?? date?.from ?? new Date()}
                 selected={pendingRange}
                 onSelect={setPendingRange}
-                numberOfMonths={2}
+                numberOfMonths={1}
                 components={{
                   DayButton: dayButtonComponent,
                 }}

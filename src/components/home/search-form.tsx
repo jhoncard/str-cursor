@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { format } from "date-fns";
 import { ChevronDown, MapPin, Minus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -27,8 +26,11 @@ export function SearchForm() {
   const [city, setCity] = useState<string>("Any");
   const [guests, setGuests] = useState<number>(1);
   
-  // Popover open states (optional, to manage close on select)
   const [isCityOpen, setIsCityOpen] = useState(false);
+  const [isDateOpen, setIsDateOpen] = useState(false);
+  const [pendingRange, setPendingRange] = useState<DateRange | undefined>(
+    undefined,
+  );
 
   const handleSearch = () => {
     // Navigate to properties page with query parameters
@@ -46,10 +48,31 @@ export function SearchForm() {
     setIsCityOpen(false);
   };
 
+  const handleDateOpenChange = (open: boolean) => {
+    if (open) {
+      setPendingRange(date);
+    }
+    setIsDateOpen(open);
+  };
+
+  const handleAcceptDates = () => {
+    if (pendingRange?.from && pendingRange?.to) {
+      setDate(pendingRange);
+      setIsDateOpen(false);
+    }
+  };
+
+  const handleCancelDates = () => {
+    setIsDateOpen(false);
+  };
+
+  const canAcceptDates =
+    Boolean(pendingRange?.from) && Boolean(pendingRange?.to);
+
   return (
     <>
       {/* 1. Travel Period - Date Range Picker */}
-      <Popover>
+      <Popover open={isDateOpen} onOpenChange={handleDateOpenChange}>
         <PopoverTrigger asChild>
           <div className="flex flex-col gap-1 cursor-pointer group hover:bg-gray-50 -mx-4 px-4 py-2 rounded-xl transition-colors">
             <div className="flex justify-between items-center">
@@ -71,15 +94,37 @@ export function SearchForm() {
             </span>
           </div>
         </PopoverTrigger>
-        <PopoverContent className="w-[680px] max-w-[calc(100vw-2rem)] p-0 bg-white border border-gray-100 shadow-xl z-50 rounded-2xl overflow-hidden" align="start" sideOffset={8}>
+        <PopoverContent
+          className="w-fit max-w-[calc(100vw-2rem)] gap-0 p-0 bg-white border border-gray-100 shadow-xl z-50 rounded-2xl overflow-hidden flex flex-col"
+          align="start"
+          sideOffset={8}
+        >
           <Calendar
+            className="p-3 [--cell-size:2.75rem]"
             initialFocus
             mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={setDate}
-            numberOfMonths={2}
+            defaultMonth={pendingRange?.from ?? date?.from}
+            selected={pendingRange}
+            onSelect={setPendingRange}
+            numberOfMonths={1}
           />
+          <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-[#f8f9fb] px-4 py-3">
+            <button
+              type="button"
+              onClick={handleCancelDates}
+              className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-[#2b2b36] hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!canAcceptDates}
+              onClick={handleAcceptDates}
+              className="rounded-full bg-[#414152] px-5 py-2 text-sm font-medium text-white hover:bg-[#2b2b36] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Accept
+            </button>
+          </div>
         </PopoverContent>
       </Popover>
       
