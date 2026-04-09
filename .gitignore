@@ -41,3 +41,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local agent scaffolding — never committed
+/.agents/
+/.tmp-*
+/SECURITY_FIXES_*.md
+/SECURITY_AUDIT_*.md
+/VITEST_SETUP.md
+/PHOTO_COMPRESSION_FIX.md
+/CLOUDFLARE_DEPLOYMENT.md
+/SEAM_PHONE_CODE_FEATURE.md
