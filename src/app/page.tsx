@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { SearchForm } from "@/components/home/search-form";
 import { OtaBanner } from "@/components/home/ota-banner";
@@ -30,9 +31,12 @@ export default function Home() {
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-semibold text-white leading-[1.1] tracking-tight mb-8">
                 An ideal stay just<br />a click away
               </h1>
-              <button className="px-8 py-3.5 rounded-full border-2 border-white text-white font-medium hover:bg-white hover:text-[#2b2b36] transition-all backdrop-blur-sm">
+              <Link
+                href="/properties"
+                className="inline-block px-8 py-3.5 rounded-full border-2 border-white text-white font-medium hover:bg-white hover:text-[#2b2b36] transition-all backdrop-blur-sm"
+              >
                 Book Now
-              </button>
+              </Link>
             </div>
           </div>
 

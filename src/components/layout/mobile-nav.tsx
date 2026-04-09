@@ -20,6 +20,9 @@ const navLinks = [
   { name: "Contact", href: "/contact" },
 ];
 
+const navLinkClass =
+  "block py-3.5 text-lg font-semibold text-[#2b2b36] hover:text-[#1a1a22] active:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors";
+
 export function MobileNav({ user }: { user: UserProfile | null }) {
   const [open, setOpen] = useState(false);
 
@@ -41,45 +44,39 @@ export function MobileNav({ user }: { user: UserProfile | null }) {
             {navLinks.map((link) => (
               <li key={link.name}>
                 <SheetClose
+                  nativeButton={false}
                   render={
-                    <Link
-                      href={link.href}
-                      className="block py-3.5 text-lg font-semibold text-[#2b2b36] hover:text-[#1a1a22] active:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
-                    />
+                    <Link href={link.href} className={navLinkClass}>
+                      {link.name}
+                    </Link>
                   }
-                >
-                  {link.name}
-                </SheetClose>
+                />
               </li>
             ))}
 
             {user && (
               <li>
                 <SheetClose
+                  nativeButton={false}
                   render={
-                    <Link
-                      href="/dashboard"
-                      className="block py-3.5 text-lg font-semibold text-[#2b2b36] hover:text-[#1a1a22] active:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
-                    />
+                    <Link href="/dashboard" className={navLinkClass}>
+                      My Reservations
+                    </Link>
                   }
-                >
-                  My Reservations
-                </SheetClose>
+                />
               </li>
             )}
 
             {user?.role === "admin" && (
               <li>
                 <SheetClose
+                  nativeButton={false}
                   render={
-                    <Link
-                      href="/admin"
-                      className="block py-3.5 text-lg font-semibold text-[#2b2b36] hover:text-[#1a1a22] active:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
-                    />
+                    <Link href="/admin" className={navLinkClass}>
+                      Admin Dashboard
+                    </Link>
                   }
-                >
-                  Admin Dashboard
-                </SheetClose>
+                />
               </li>
             )}
           </ul>
@@ -102,35 +99,38 @@ export function MobileNav({ user }: { user: UserProfile | null }) {
             ) : (
               <>
                 <SheetClose
+                  nativeButton={false}
                   render={
                     <Link
                       href="/register"
-                      className="block w-full text-center py-3.5 rounded-full bg-[#2b2b36] text-white text-base font-semibold hover:bg-[#363645] transition-colors shadow-sm"
-                    />
+                      className="block w-full text-center py-3.5 rounded-full bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700 border-2 border-emerald-700 shadow-sm transition-colors"
+                    >
+                      Sign up
+                    </Link>
                   }
-                >
-                  Sign up
-                </SheetClose>
+                />
                 <SheetClose
+                  nativeButton={false}
                   render={
                     <Link
                       href="/login"
                       className="block w-full text-center py-3.5 rounded-full border-2 border-[#2b2b36] bg-white text-[#2b2b36] text-base font-semibold hover:bg-gray-100 transition-colors"
-                    />
+                    >
+                      Sign in
+                    </Link>
                   }
-                >
-                  Sign in
-                </SheetClose>
+                />
                 <SheetClose
+                  nativeButton={false}
                   render={
                     <Link
                       href="/properties"
                       className="block w-full text-center py-3.5 rounded-full border-2 border-gray-300 bg-gray-50 text-[#2b2b36] text-base font-semibold hover:bg-gray-100 transition-colors"
-                    />
+                    >
+                      Book Now
+                    </Link>
                   }
-                >
-                  Book Now
-                </SheetClose>
+                />
               </>
             )}
           </div>
