@@ -14,11 +14,14 @@ export default function ContactForm() {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Capture before any await — React may clear e.currentTarget after the
+    // event handler yields, and form.reset() would throw → false "Failed to send".
+    const form = e.currentTarget;
     setStatus("sending");
     setErrorMessage("");
     setSuccessNote("");
 
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     const data = {
       name: formData.get("name") as string,
       email: formData.get("email") as string,
@@ -33,7 +36,28 @@ export default function ContactForm() {
         body: JSON.stringify(data),
       });
 
-      const json = await res.json();
+      // Avoid res.json() throwing on empty/HTML bodies (e.g. proxy timeouts after
+      // Resend accepted the send) — that previously showed a false "Failed to send"
+      // even when the email was delivered.
+      const raw = await res.text();
+      let json: {
+        error?: string;
+        hint?: string;
+        success?: boolean;
+        devEmailSkipped?: boolean;
+      } = {};
+      if (raw.trim()) {
+        try {
+          json = JSON.parse(raw) as typeof json;
+        } catch {
+          // Non-JSON body with 2xx: treat as success (message likely processed).
+          if (res.ok) {
+            setStatus("success");
+            form.reset();
+            return;
+          }
+        }
+      }
 
       if (!res.ok) {
         setStatus("error");
@@ -47,7 +71,7 @@ export default function ContactForm() {
       }
 
       setStatus("success");
-      e.currentTarget.reset();
+      form.reset();
       if (json.devEmailSkipped === true) {
         setSuccessNote(
           "Development mode: RESEND_API_KEY is not set, so no email was sent. Your message was logged in the server terminal. Add a key to .env.local to deliver mail.",
