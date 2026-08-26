@@ -2,6 +2,7 @@
 
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { assertSafeFeedUrl } from "@/lib/ical/safe-feed-url";
 import {
   PROPERTY_IMAGES_BUCKET,
   assertImagePropertyImage,
@@ -454,7 +455,10 @@ async function syncFeedBlockedDates(
   feedUrl: string
 ) {
   const supabase = await createClient();
-  const res = await fetch(feedUrl, {
+  // Re-validate at fetch time so feeds stored before this guard existed are
+  // covered on every re-sync, not just when first added. Finding #13.
+  const safeUrl = assertSafeFeedUrl(feedUrl);
+  const res = await fetch(safeUrl.toString(), {
     headers: { "user-agent": "FeathersHousesIcalSync/1.0" },
     cache: "no-store",
   });
@@ -503,6 +507,9 @@ export async function addPropertyIcalFeed(
   const supabase = await createClient();
   const url = feedUrl.trim();
   if (!url) throw new Error("Calendar URL is required.");
+  // Reject unsafe hosts before writing a row, so a rejected feed never
+  // reaches the database or the cron sync loop. Finding #13.
+  assertSafeFeedUrl(url);
 
   const normalized = ICAL_SOURCE_OPTIONS.includes(
     source as (typeof ICAL_SOURCE_OPTIONS)[number]

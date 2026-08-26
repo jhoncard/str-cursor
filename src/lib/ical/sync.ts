@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { propertyIcalFeeds, propertyIcalBlockedDates } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { addDays, format } from 'date-fns';
+import { assertSafeFeedUrl } from '@/lib/ical/safe-feed-url';
 
 function unfoldIcsLines(ics: string): string[] {
   return ics
@@ -116,7 +117,10 @@ export async function syncIcalFeed(
   propertyId: string,
   feedUrl: string,
 ) {
-  const response = await fetch(feedUrl, {
+  // Re-validate on every sync, not just at insert time: feeds stored before
+  // this guard existed are still fetched by the cron job. Finding #13.
+  const safeUrl = assertSafeFeedUrl(feedUrl);
+  const response = await fetch(safeUrl.toString(), {
     headers: { 'user-agent': 'FeathersHousesIcalSync/1.0' },
     cache: 'no-store',
   });
