@@ -3,6 +3,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { assertSafeFeedUrl } from "@/lib/ical/safe-feed-url";
+import { fetchIcsText } from "@/lib/ical/fetch-feed";
 import {
   PROPERTY_IMAGES_BUCKET,
   assertImagePropertyImage,
@@ -455,17 +456,9 @@ async function syncFeedBlockedDates(
   feedUrl: string
 ) {
   const supabase = await createClient();
-  // Re-validate at fetch time so feeds stored before this guard existed are
-  // covered on every re-sync, not just when first added. Finding #13.
-  const safeUrl = assertSafeFeedUrl(feedUrl);
-  const res = await fetch(safeUrl.toString(), {
-    headers: { "user-agent": "FeathersHousesIcalSync/1.0" },
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(`Could not fetch iCal feed (${res.status}).`);
-  }
-  const text = await res.text();
+  // Validated, timed out and size-capped at fetch time so feeds stored before
+  // these guards existed are covered on every re-sync. Findings #13, #17.
+  const text = await fetchIcsText(feedUrl);
   const nights = extractBlockedNightsFromIcs(text);
 
   const { error: deleteErr } = await supabase

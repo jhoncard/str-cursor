@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { propertyIcalFeeds, propertyIcalBlockedDates } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { addDays, format } from 'date-fns';
-import { assertSafeFeedUrl } from '@/lib/ical/safe-feed-url';
+import { fetchIcsText } from '@/lib/ical/fetch-feed';
 
 function unfoldIcsLines(ics: string): string[] {
   return ics
@@ -117,17 +117,9 @@ export async function syncIcalFeed(
   propertyId: string,
   feedUrl: string,
 ) {
-  // Re-validate on every sync, not just at insert time: feeds stored before
-  // this guard existed are still fetched by the cron job. Finding #13.
-  const safeUrl = assertSafeFeedUrl(feedUrl);
-  const response = await fetch(safeUrl.toString(), {
-    headers: { 'user-agent': 'FeathersHousesIcalSync/1.0' },
-    cache: 'no-store',
-  });
-  if (!response.ok) {
-    throw new Error(`Could not fetch iCal feed (${response.status}).`);
-  }
-  const ics = await response.text();
+  // Validated, timed out and size-capped on every sync — feeds stored before
+  // these guards existed are still fetched by the cron job. Findings #13, #17.
+  const ics = await fetchIcsText(feedUrl);
   const blockedDates = extractBlockedNightsFromIcs(ics);
   const uniqueDates = [...new Set(blockedDates)];
 
