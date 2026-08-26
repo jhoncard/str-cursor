@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same branch/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck, lint, test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm must be installed before setup-node so its cache resolver works.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # Pinned to 10.x: pnpm 11 dropped support for the "pnpm.overrides"
+          # field in package.json, which this repo uses to hold the esbuild
+          # and hono security pins from the Pass 2/3 audits. On 11 those pins
+          # are silently ignored. See package.json "pnpm.overrides".
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
