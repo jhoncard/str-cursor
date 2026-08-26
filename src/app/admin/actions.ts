@@ -46,7 +46,10 @@ export async function updateProperty(
     .eq("id", propertyId)
     .select("id");
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[admin] updateProperty failed:", error);
+    throw new Error("Could not save property changes. Please try again.");
+  }
   if (!updated?.length) {
     throw new Error(
       "Could not save changes. Sign in as an admin or refresh the page and try again.",
@@ -182,7 +185,10 @@ export async function addPropertyImage(
     is_cover: nextOrder === 0,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[admin] addPropertyImage failed:", error);
+    throw new Error("Could not add the image. Please try again.");
+  }
   return { success: true };
 }
 
@@ -207,7 +213,10 @@ export async function deletePropertyImage(imageId: string) {
 
   const { error } = await db.from("property_images").delete().eq("id", imageId);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[admin] deletePropertyImage failed:", error);
+    throw new Error("Could not delete the image. Please try again.");
+  }
   return { success: true };
 }
 
@@ -242,7 +251,10 @@ export async function uploadPropertyImageFile(formData: FormData) {
       upsert: false,
     });
 
-  if (uploadError) throw new Error(uploadError.message);
+  if (uploadError) {
+    console.error("[admin] uploadPropertyImageFile failed:", uploadError);
+    throw new Error("Could not upload the image. Please try again.");
+  }
 
   const {
     data: { publicUrl },
@@ -276,7 +288,10 @@ export async function uploadPropertyRentalAgreementPdf(formData: FormData) {
     .eq("id", pid)
     .maybeSingle();
 
-  if (fetchErr) throw new Error(fetchErr.message);
+  if (fetchErr) {
+    console.error("[admin] uploadPropertyRentalAgreementPdf load failed:", fetchErr);
+    throw new Error("Could not load the property. Please try again.");
+  }
 
   const oldUrl = row?.guest_contract_pdf_url as string | null | undefined;
   if (oldUrl) {
@@ -299,7 +314,10 @@ export async function uploadPropertyRentalAgreementPdf(formData: FormData) {
       upsert: false,
     });
 
-  if (uploadError) throw new Error(uploadError.message);
+  if (uploadError) {
+    console.error("[admin] uploadPropertyRentalAgreementPdf failed:", uploadError);
+    throw new Error("Could not upload the rental agreement. Please try again.");
+  }
 
   const {
     data: { publicUrl },
@@ -311,7 +329,10 @@ export async function uploadPropertyRentalAgreementPdf(formData: FormData) {
     .eq("id", pid)
     .select("id");
 
-  if (updateErr) throw new Error(updateErr.message);
+  if (updateErr) {
+    console.error("[admin] uploadPropertyRentalAgreementPdf save failed:", updateErr);
+    throw new Error("Could not save the rental agreement. Please try again.");
+  }
   if (!updatedRows?.length) {
     throw new Error(
       "Could not save the PDF link to the property. Ensure you are logged in as an admin and try again.",
@@ -331,7 +352,10 @@ export async function removePropertyRentalAgreementPdf(propertyId: string) {
     .eq("id", propertyId)
     .maybeSingle();
 
-  if (fetchErr) throw new Error(fetchErr.message);
+  if (fetchErr) {
+    console.error("[admin] removePropertyRentalAgreementPdf load failed:", fetchErr);
+    throw new Error("Could not load the property. Please try again.");
+  }
 
   const url = row?.guest_contract_pdf_url as string | null | undefined;
   if (url) {
@@ -350,7 +374,10 @@ export async function removePropertyRentalAgreementPdf(propertyId: string) {
     .eq("id", propertyId)
     .select("id");
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[admin] removePropertyRentalAgreementPdf failed:", error);
+    throw new Error("Could not remove the rental agreement. Please try again.");
+  }
   if (!cleared?.length) {
     throw new Error(
       "Could not update the property. Ensure you are logged in as an admin.",
@@ -465,7 +492,10 @@ async function syncFeedBlockedDates(
     .from("property_ical_blocked_dates")
     .delete()
     .eq("ical_feed_id", feedId);
-  if (deleteErr) throw new Error(deleteErr.message);
+  if (deleteErr) {
+    console.error("[admin] syncFeedBlockedDates clear failed:", deleteErr);
+    throw new Error("Could not update calendar availability. Please try again.");
+  }
 
   if (nights.length > 0) {
     const chunk = 500;
@@ -478,7 +508,10 @@ async function syncFeedBlockedDates(
       const { error: insErr } = await supabase
         .from("property_ical_blocked_dates")
         .insert(batch);
-      if (insErr) throw new Error(insErr.message);
+      if (insErr) {
+        console.error("[admin] syncFeedBlockedDates insert failed:", insErr);
+        throw new Error("Could not update calendar availability. Please try again.");
+      }
     }
   }
 
@@ -486,7 +519,10 @@ async function syncFeedBlockedDates(
     .from("property_ical_feeds")
     .update({ last_sync_at: new Date().toISOString() })
     .eq("id", feedId);
-  if (updateErr) throw new Error(updateErr.message);
+  if (updateErr) {
+    console.error("[admin] syncFeedBlockedDates timestamp failed:", updateErr);
+    throw new Error("Could not update calendar sync status. Please try again.");
+  }
 
   return nights.length;
 }
@@ -516,7 +552,10 @@ export async function addPropertyIcalFeed(
     .eq("property_id", propertyId)
     .eq("feed_url", url)
     .maybeSingle();
-  if (existingError) throw new Error(existingError.message);
+  if (existingError) {
+    console.error("[admin] addPropertyIcalFeed lookup failed:", existingError);
+    throw new Error("Could not check existing calendar feeds. Please try again.");
+  }
   if (existing?.id) {
     throw new Error("This iCalendar URL is already added for this property.");
   }
@@ -534,7 +573,8 @@ export async function addPropertyIcalFeed(
     if (error?.code === "23505") {
       throw new Error("This iCalendar URL is already added for this property.");
     }
-    throw new Error(error?.message ?? "Could not save calendar feed.");
+    console.error("[admin] addPropertyIcalFeed insert failed:", error);
+    throw new Error("Could not save calendar feed.");
   }
 
   const count = await syncFeedBlockedDates(row.id, propertyId, url);
@@ -545,7 +585,10 @@ export async function deletePropertyIcalFeed(feedId: string) {
   await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase.from("property_ical_feeds").delete().eq("id", feedId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[admin] deletePropertyIcalFeed failed:", error);
+    throw new Error("Could not delete the calendar feed. Please try again.");
+  }
 }
 
 export async function syncPropertyIcalFeedNow(feedId: string) {
@@ -556,7 +599,10 @@ export async function syncPropertyIcalFeedNow(feedId: string) {
     .select("id, property_id, feed_url")
     .eq("id", feedId)
     .single();
-  if (error || !feed) throw new Error(error?.message ?? "Feed not found.");
+  if (error || !feed) {
+    console.error("[admin] syncPropertyIcalFeedNow lookup failed:", error);
+    throw new Error("Calendar feed not found.");
+  }
 
   const count = await syncFeedBlockedDates(feed.id, feed.property_id, feed.feed_url);
   return { nightsBlocked: count };
@@ -573,6 +619,9 @@ export async function regeneratePropertyIcalExportToken(propertyId: string) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", propertyId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[admin] regeneratePropertyIcalExportToken failed:", error);
+    throw new Error("Could not regenerate the export link. Please try again.");
+  }
   return { icalExportToken: token };
 }
