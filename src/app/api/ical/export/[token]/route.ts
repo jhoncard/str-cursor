@@ -24,7 +24,6 @@ export async function GET(
       id: bookings.id,
       checkIn: bookings.checkIn,
       checkOut: bookings.checkOut,
-      confirmationCode: bookings.confirmationCode,
     })
     .from(bookings)
     .where(
@@ -49,7 +48,10 @@ export async function GET(
     productIdHost: base,
     events: confirmed.map((b) => ({
       uid: `booking-${b.id}@${host}`,
-      summary: `Booked: ${property.name} (${b.confirmationCode})`,
+      // This endpoint is public and unauthenticated: the summary must not
+      // carry booking identifiers. Channel managers only need the dates and
+      // a stable UID. See docs/security/SECURITY_AUDIT_PASS_3.md finding #14.
+      summary: "Booked",
       checkIn: String(b.checkIn),
       checkOut: String(b.checkOut),
     })),

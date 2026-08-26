@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { propertyIcalFeeds, propertyIcalBlockedDates } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { addDays, format } from 'date-fns';
+import { fetchIcsText } from '@/lib/ical/fetch-feed';
 
 function unfoldIcsLines(ics: string): string[] {
   return ics
@@ -116,14 +117,9 @@ export async function syncIcalFeed(
   propertyId: string,
   feedUrl: string,
 ) {
-  const response = await fetch(feedUrl, {
-    headers: { 'user-agent': 'FeathersHousesIcalSync/1.0' },
-    cache: 'no-store',
-  });
-  if (!response.ok) {
-    throw new Error(`Could not fetch iCal feed (${response.status}).`);
-  }
-  const ics = await response.text();
+  // Validated, timed out and size-capped on every sync — feeds stored before
+  // these guards existed are still fetched by the cron job. Findings #13, #17.
+  const ics = await fetchIcsText(feedUrl);
   const blockedDates = extractBlockedNightsFromIcs(ics);
   const uniqueDates = [...new Set(blockedDates)];
 
