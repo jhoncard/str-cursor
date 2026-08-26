@@ -9,6 +9,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
     "test-pricelabs": "tsx scripts/test-pricelabs.ts",
     "migrate:seam": "tsx scripts/apply-seam-migration.ts"
   },
@@ -66,6 +69,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@vitest/ui": "^4.1.11",
     "dotenv": "^17.4.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^8",
@@ -76,6 +80,7 @@
     "shadcn": "^4.1.2",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }
