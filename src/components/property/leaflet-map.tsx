@@ -15,6 +15,13 @@ interface LeafletMapProps {
 // Center of Tampa area
 const MAP_CENTER: [number, number] = [27.9506, -82.4572];
 
+function hasValidCoordinates(property: Property): boolean {
+  return Number.isFinite(property.locationLat) &&
+    Number.isFinite(property.locationLng) &&
+    property.locationLat >= -90 && property.locationLat <= 90 &&
+    property.locationLng >= -180 && property.locationLng <= 180;
+}
+
 // Custom map icon (Light mode styled to match brand)
 const createCustomIcon = (price: number, isHovered: boolean) => {
   const html = `
@@ -75,6 +82,8 @@ function MapUpdater({ properties, hoveredId }: { properties: Property[], hovered
 }
 
 export default function LeafletMap({ properties, hoveredPropertyId, onPropertySelect }: LeafletMapProps) {
+  const mappedProperties = properties.filter(hasValidCoordinates);
+
   return (
     <MapContainer
       center={MAP_CENTER}
@@ -87,9 +96,9 @@ export default function LeafletMap({ properties, hoveredPropertyId, onPropertySe
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
       />
-      <MapUpdater properties={properties} hoveredId={hoveredPropertyId} />
+      <MapUpdater properties={mappedProperties} hoveredId={hoveredPropertyId} />
       
-      {properties.map((property) => (
+      {mappedProperties.map((property) => (
         <Marker
           key={property.id}
           position={[property.locationLat, property.locationLng]}

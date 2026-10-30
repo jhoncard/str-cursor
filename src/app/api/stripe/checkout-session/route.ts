@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { propertiesData } from "@/data/properties";
 import { getStripe } from "@/lib/stripe";
+import { eachStayNight } from "@/lib/stay-dates";
 import { isStayAvailable } from "@/lib/availability";
 import { computeStayAccommodationSubtotal } from "@/lib/pricing/stay-quote";
 import { db } from "@/lib/db";
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest) {
       );
     }
     const body: CheckoutPayload = parsed.data;
+    if (!eachStayNight(body.checkIn, body.checkOut).length) {
+      return NextResponse.json({ error: "Choose valid check-in and check-out dates (up to 730 nights)." }, { status: 400 });
+    }
     const property = propertiesData.find((item) => item.slug === body.slug);
 
     if (!property) {
@@ -87,13 +91,16 @@ export async function POST(request: NextRequest) {
 
     const dbProperty = await db.query.properties.findFirst({
       where: eq(properties.slug, property.slug),
-      columns: { id: true, guestContractPdfUrl: true, cleaningFee: true },
+      columns: { id: true, guestContractPdfUrl: true, cleaningFee: true, status: true, maxGuests: true },
     });
-    if (!dbProperty?.id) {
+    if (!dbProperty?.id || dbProperty.status !== "active") {
       return NextResponse.json(
         { error: "This property is not available for online booking yet." },
         { status: 400 }
       );
+    }
+    if (body.numGuests > dbProperty.maxGuests) {
+      return NextResponse.json({ error: "Guest count exceeds property capacity." }, { status: 400 });
     }
     const availabilityPropertyId = dbProperty.id;
 
@@ -176,6 +183,8 @@ export async function POST(request: NextRequest) {
         numGuests: String(body.numGuests),
         accommodationSubtotal: String(accommodation.subtotal),
         pricingNights: String(accommodation.nights),
+        cleaningFee: String(cleaningFeeAmount),
+        serviceFee: String(serviceFeeAmount),
         ...(body.specialRequests ? { specialRequests: body.specialRequests } : {}),
         ...(body.arrivalTime ? { arrivalTime: body.arrivalTime } : {}),
         ...(contractAcceptedAtIso

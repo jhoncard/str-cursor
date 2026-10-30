@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { SITE_CONTACT_EMAIL } from "@/lib/site-contact";
 import { isAirbnbOptimizerHost } from "@/lib/remote-image";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 
@@ -26,6 +27,8 @@ interface SessionData {
   // security audit Finding #2. PII is no longer returned by the public endpoint.
   metadata: Record<string, string>;
   confirmationCode: string | null;
+  bookingStatus: string | null;
+  bookingPaymentStatus: string | null;
   /** Rental agreement PDF URL when configured for this property (from database). */
   guestContractPdfUrl?: string | null;
 }
@@ -34,48 +37,68 @@ export default function SuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
 
-  const [status, setStatus] = useState<"loading" | "paid" | "unpaid" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "confirming" | "confirmed" | "pending" | "unpaid" | "error" | "review">("loading");
   const [message, setMessage] = useState("Checking your payment status...");
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    let paymentReceived = false;
+    setStatus("loading");
+    setSessionData(null);
+    setMessage("Checking your payment and reservation...");
+
     const fetchSession = async () => {
       if (!sessionId) {
         setStatus("error");
-        setMessage("Missing Stripe session ID.");
+        setMessage("Missing payment reference. Contact your host if you already paid.");
         return;
       }
-
+      attempts += 1;
       try {
-        const response = await fetch(`/api/stripe/session?session_id=${sessionId}`);
+        const response = await fetch(`/api/stripe/session?session_id=${encodeURIComponent(sessionId)}`, {
+          cache: "no-store",
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]),
+        });
+        if (!response.ok) throw new Error("Status unavailable");
         const payload: SessionData = await response.json();
-
-        if (!response.ok) {
-          setStatus("error");
-          setMessage("Unable to load payment status.");
+        if (controller.signal.aborted) return;
+        setSessionData(payload);
+        paymentReceived = payload.paymentStatus === "paid";
+        if (payload.bookingStatus && (payload.bookingStatus !== "confirmed" || payload.bookingPaymentStatus !== "paid")) {
+          setStatus("review");
+          setMessage("This reservation is not currently confirmed. Contact your host to check its status. Do not pay again.");
           return;
         }
-
-        setSessionData(payload);
-
-        if (payload.paymentStatus === "paid") {
-          setStatus("paid");
-          setMessage(
-            payload.confirmationCode
-              ? "Your payment and booking are confirmed."
-              : "Your payment was processed. Booking confirmation is syncing..."
-          );
-        } else {
-          setStatus("unpaid");
-          setMessage("Payment is still pending. Please wait a moment and refresh.");
+        if (paymentReceived && payload.bookingStatus === "confirmed" &&
+            payload.bookingPaymentStatus === "paid" && payload.confirmationCode) {
+          setStatus("confirmed");
+          setMessage("Your payment and booking are confirmed.");
+          return;
         }
+        setStatus(paymentReceived ? "confirming" : "unpaid");
+        setMessage(paymentReceived
+          ? "Payment received. We are waiting for your reservation to be confirmed. Please do not pay again."
+          : "Your payment is still processing. We are checking for an update.");
       } catch {
-        setStatus("error");
-        setMessage("Unable to load Stripe confirmation.");
+        if (controller.signal.aborted) return;
+        setMessage(paymentReceived
+          ? "Payment received. We are retrying the reservation status check. Please do not pay again."
+          : "We could not check your status yet. Retrying...");
+      }
+      if (attempts < 12) {
+        timer = setTimeout(fetchSession, 2500);
+      } else {
+        setStatus(paymentReceived ? "pending" : "error");
+        setMessage(paymentReceived
+          ? "Payment received, but your reservation is not confirmed yet. Contact your host with the reference below so we can resolve it. Do not pay again."
+          : "We cannot confirm your payment and reservation yet. Contact your host with the reference below before trying another payment.");
       }
     };
-
-    fetchSession();
+    void fetchSession();
+    return () => { controller.abort(); clearTimeout(timer); };
   }, [sessionId]);
 
   const meta = sessionData?.metadata ?? {};
@@ -91,38 +114,38 @@ export default function SuccessContent() {
       <div className="max-w-2xl w-full flex flex-col gap-6">
 
         <div className="bg-white rounded-[2rem] p-10 shadow-sm border border-gray-100 flex flex-col items-center text-center gap-4">
-          {status === "loading" && (
+          {(status === "loading" || status === "confirming") && (
             <div className="w-20 h-20 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center">
               <Loader2 className="w-10 h-10 animate-spin" />
             </div>
           )}
-          {status === "paid" && (
+          {status === "confirmed" && (
             <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center">
               <CheckCircle2 className="w-10 h-10" />
             </div>
           )}
-          {(status === "unpaid" || status === "error") && (
+          {(status === "unpaid" || status === "error" || status === "pending" || status === "review") && (
             <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center">
               <XCircle className="w-10 h-10" />
             </div>
           )}
 
           <h1 className="text-3xl font-semibold text-[#2b2b36]">
-            {status === "paid" ? "Booking Confirmed!" : "Payment Status"}
+            {status === "confirmed" ? "Booking Confirmed!" : (status === "confirming" || status === "pending") ? "Payment Received" : "Reservation Status"}
           </h1>
-          <p className="text-gray-500 max-w-sm">{message}</p>
+          <p aria-live="polite" className="text-gray-500 max-w-sm">{message}</p>
 
-          {sessionData?.confirmationCode && (
+          {status === "confirmed" && sessionData?.confirmationCode && (
             <div className="bg-[#f4f6f8] w-full max-w-sm p-5 rounded-2xl border border-gray-200 mt-2">
               <span className="block text-sm text-gray-500 mb-1">Confirmation Code</span>
-              <span className="text-2xl font-mono font-bold text-[#2b2b36] tracking-widest">
+              <span className="text-xl sm:text-2xl break-all font-mono font-bold text-[#2b2b36] tracking-widest">
                 {sessionData.confirmationCode}
               </span>
             </div>
           )}
         </div>
 
-        {status === "paid" && sessionData && (
+        {status === "confirmed" && sessionData && (
           <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 flex flex-col gap-6">
             <h2 className="text-xl font-semibold text-[#2b2b36]">Reservation Summary</h2>
 
@@ -180,7 +203,7 @@ export default function SuccessContent() {
           </div>
         )}
 
-        {status === "paid" && sessionData?.guestContractPdfUrl && (
+        {status === "confirmed" && sessionData?.guestContractPdfUrl && (
           <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-[#2b2b36]" />
@@ -209,7 +232,7 @@ export default function SuccessContent() {
           </div>
         )}
 
-        {status === "paid" && (
+        {status === "confirmed" && (
           <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 flex flex-col gap-5">
             <h2 className="text-xl font-semibold text-[#2b2b36]">What&apos;s Next</h2>
 
@@ -220,7 +243,7 @@ export default function SuccessContent() {
                 </div>
                 <div>
                   <p className="font-medium text-[#2b2b36]">Check your email</p>
-                  <p className="text-sm text-gray-500">A confirmation with your booking details has been sent to your email address.</p>
+                  <p className="text-sm text-gray-500">Look for your booking confirmation email. If it does not arrive, contact your host using your confirmation code.</p>
                 </div>
               </div>
 
@@ -230,7 +253,7 @@ export default function SuccessContent() {
                 </div>
                 <div>
                   <p className="font-medium text-[#2b2b36]">Self check-in instructions</p>
-                  <p className="text-sm text-gray-500">You will receive check-in instructions 24 hours before your arrival.</p>
+                  <p className="text-sm text-gray-500">Your host will provide your check-in instructions before arrival. Contact them if you need assistance.</p>
                 </div>
               </div>
 
@@ -247,15 +270,19 @@ export default function SuccessContent() {
           </div>
         )}
 
+        {(status === "pending" || status === "error" || status === "review") && sessionId && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm">
+            <p>Payment reference (share privately with your host):</p>
+            <p className="mt-2 break-all font-mono">{sessionId}</p>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-4">
-          {status === "paid" && meta.propertySlug && (
-            <Link
-              href={`/properties/${meta.propertySlug}`}
-              className="flex-1 py-4 rounded-full border-2 border-[#2b2b36] text-[#2b2b36] font-medium hover:bg-[#2b2b36] hover:text-white transition-colors text-center"
-            >
-              Contact Host
-            </Link>
-          )}
+          <a
+            href={`mailto:${SITE_CONTACT_EMAIL}`}
+            className="flex-1 py-4 rounded-full border-2 border-[#2b2b36] text-[#2b2b36] font-medium text-center"
+          >
+            Contact Host
+          </a>
           <Link
             href="/properties"
             className="flex-1 py-4 rounded-full bg-[#414152] hover:bg-[#2b2b36] text-white font-medium transition-colors shadow-md text-center flex items-center justify-center gap-2"

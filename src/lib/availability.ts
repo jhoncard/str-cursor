@@ -1,25 +1,14 @@
 import { db } from '@/lib/db';
-import { availability, propertyIcalBlockedDates } from '@/lib/db/schema';
-import { eq, and, gte, lte, inArray } from 'drizzle-orm';
-import { addDays, format } from 'date-fns';
+import { availability, propertyIcalBlockedDates, bookings } from '@/lib/db/schema';
+import { eq, and, gte, lte, inArray, lt, gt, ne } from 'drizzle-orm';
+import { format } from 'date-fns';
+import { eachStayNight } from './stay-dates';
+export { eachStayNight } from './stay-dates';
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   );
-}
-
-/** Nights occupied for a stay: checkIn .. checkOut (checkOut is exclusive). */
-export function eachStayNight(checkIn: string, checkOut: string): string[] {
-  const nights: string[] = [];
-  let current = new Date(`${checkIn}T12:00:00Z`);
-  const end = new Date(`${checkOut}T12:00:00Z`);
-
-  while (current < end) {
-    nights.push(format(current, 'yyyy-MM-dd'));
-    current = addDays(current, 1);
-  }
-  return nights;
 }
 
 export async function getBlockedDates(
@@ -75,13 +64,13 @@ export async function isStayAvailable(
 ): Promise<boolean> {
   // Without a DB UUID we cannot look up persisted availability rows.
   if (!isUuid(propertyId)) {
-    return true;
+    return false;
   }
 
   const nights = eachStayNight(checkIn, checkOut);
   if (nights.length === 0) return false;
 
-  const [availRows, icalRows] = await Promise.all([
+  const [availRows, icalRows, bookingRows] = await Promise.all([
     db
       .select({ date: availability.date })
       .from(availability)
@@ -101,7 +90,11 @@ export async function isStayAvailable(
           inArray(propertyIcalBlockedDates.blockedDate, nights),
         ),
       ),
+    db.select({ id: bookings.id }).from(bookings).where(and(
+      eq(bookings.propertyId, propertyId), ne(bookings.bookingStatus, 'cancelled'),
+      lt(bookings.checkIn, checkOut), gt(bookings.checkOut, checkIn),
+    )).limit(1),
   ]);
 
-  return availRows.length === 0 && icalRows.length === 0;
+  return availRows.length === 0 && icalRows.length === 0 && bookingRows.length === 0;
 }
