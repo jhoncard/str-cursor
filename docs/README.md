@@ -16,6 +16,9 @@ remediations.
 
 ## Features
 
+- [`RESERVATION_INTEGRITY.md`](RESERVATION_INTEGRITY.md) — Increment 1 implementation,
+  isolated booking tests, database migration status, and payment/fulfillment recovery.
+
 Specs and execution plans for major features. Each is structured as
 an executable task document with find/replace blocks.
 

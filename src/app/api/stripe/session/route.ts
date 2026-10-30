@@ -19,15 +19,17 @@ export async function GET(request: NextRequest) {
         ? session.payment_intent
         : session.payment_intent?.id ?? null;
     let confirmationCode: string | null = null;
+    let bookingStatus: string | null = null;
+    let bookingPaymentStatus: string | null = null;
     if (paymentIntentId) {
-      try {
-        const booking = await db.query.bookings.findFirst({
-          where: eq(bookings.paymentIntentId, paymentIntentId),
-          columns: { confirmationCode: true },
-        });
+      const booking = await db.query.bookings.findFirst({
+        where: eq(bookings.paymentIntentId, paymentIntentId),
+        columns: { confirmationCode: true, bookingStatus: true, paymentStatus: true },
+      });
+      bookingStatus = booking?.bookingStatus ?? null;
+      bookingPaymentStatus = booking?.paymentStatus ?? null;
+      if (bookingStatus === "confirmed" && bookingPaymentStatus === "paid") {
         confirmationCode = booking?.confirmationCode ?? null;
-      } catch (dbError) {
-        console.error("Booking lookup by payment intent failed:", dbError);
       }
     }
 
@@ -66,8 +68,10 @@ export async function GET(request: NextRequest) {
         checkOut: session.metadata?.checkOut ?? "",
       },
       confirmationCode,
+      bookingStatus,
+      bookingPaymentStatus,
       guestContractPdfUrl,
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Stripe session fetch error:", error);
     return NextResponse.json({ error: "Unable to load payment status." }, { status: 500 });

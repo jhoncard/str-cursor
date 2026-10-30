@@ -2,8 +2,9 @@ import "server-only";
 
 import { addDays, format } from "date-fns";
 import { db } from "@/lib/db";
-import { availability, properties } from "@/lib/db/schema";
+import { properties } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { writePriceLabsRate } from "./write-rate";
 
 import { isPriceLabsConfigured } from "./config";
 import { fetchListingRatesUncached, type ListingDailyRate } from "./listing-rates";
@@ -66,24 +67,7 @@ export async function syncPriceLabsRatesForProperty(propertyId: string): Promise
 
   let nightsUpdated = 0;
   for (const { date, price, available } of daily) {
-    await db
-      .insert(availability)
-      .values({
-        propertyId,
-        date,
-        status: available ? "available" : "blocked",
-        priceOverride: String(price),
-        source: "pricelabs",
-      })
-      .onConflictDoUpdate({
-        target: [availability.propertyId, availability.date],
-        set: {
-          priceOverride: String(price),
-          status: available ? "available" : "blocked",
-          source: "pricelabs",
-          updatedAt: new Date(),
-        },
-      });
+    await writePriceLabsRate(db, propertyId, { date, price, available });
     nightsUpdated += 1;
   }
 
@@ -97,23 +81,7 @@ export async function upsertPriceLabsNightlyRates(
 ): Promise<number> {
   let n = 0;
   for (const { date, price } of rates) {
-    await db
-      .insert(availability)
-      .values({
-        propertyId,
-        date: date.slice(0, 10),
-        status: "available",
-        priceOverride: String(price),
-        source: "pricelabs",
-      })
-      .onConflictDoUpdate({
-        target: [availability.propertyId, availability.date],
-        set: {
-          priceOverride: String(price),
-          source: "pricelabs",
-          updatedAt: new Date(),
-        },
-      });
+    await writePriceLabsRate(db, propertyId, { date, price });
     n += 1;
   }
   return n;

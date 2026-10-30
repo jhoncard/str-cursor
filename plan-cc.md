@@ -253,22 +253,25 @@ Maps directly to the data models defined in the architecture document (Section 3
 - [ ] Structured data: VacationRental, BreadcrumbList, Review
 
 #### Step 6: Booking & Checkout Flow (Days 15–19)
-- [ ] Stripe integration (Payment Intents API)
-- [ ] Checkout page with step indicator (Guest Info → Payment → Confirmation)
-- [ ] Booking summary sidebar (property, dates, rate breakdown, total)
-- [ ] Guest information form (name, email, phone, special requests, arrival time)
-- [ ] Payment form (Stripe Elements)
-- [ ] Policy acceptance checkboxes (cancellation, house rules, terms)
-- [ ] Confirm & Pay button with total amount
-- [ ] Stripe webhook handler for payment confirmation
-- [ ] Booking record creation in database
-- [ ] Availability calendar update (mark dates as booked)
+- [x] Stripe Checkout integration (hosted payment form; replaces planned Stripe Elements)
+- [x] Checkout page with step indicator and booking summary
+- [x] Guest information form and policy acceptance checkboxes
+- [x] Confirm & Pay button with server-calculated total
+- [x] Verified webhook for paid completion and delayed-payment success
+- [x] Atomic booking creation and nightly blocks, with concurrent-payment protection
+- [x] Apply and verify increment 1 database constraints in Supabase (October 29, 2026)
+- [ ] Deploy increment 1 application changes and verify the deployed booking flow
+
+Status reconciled October 29, 2026. Implementations: `src/app/api/stripe/`,
+`src/app/properties/[slug]/book/`, and `src/lib/booking/`. Isolated tests pass;
+live payment/provider verification is separate. See
+[reservation integrity and recovery](docs/RESERVATION_INTEGRITY.md).
 
 #### Step 7: Booking Confirmation Page (Days 19–20)
-- [ ] Success message with confirmation code and animated checkmark
-- [ ] Reservation summary (property, dates, guests, total)
-- [ ] Next steps info (email confirmation, check-in instructions timing)
-- [ ] Contact host link
+- [x] Confirmed-state message and confirmation code (checkmark; no animation requirement)
+- [x] Reservation summary (property, dates, guests, total)
+- [x] Pending payment/reservation states, bounded refresh and host recovery link
+- [x] Next steps information without claiming unverified email delivery or scheduling
 
 #### Step 8: iCal Availability Sync (Days 20–22)
 - [ ] iCal feed parser for Airbnb, VRBO, Booking.com calendars
@@ -300,7 +303,9 @@ Maps directly to the data models defined in the architecture document (Section 3
 - [ ] Core Web Vitals audit (target: LCP < 2.5s, CLS < 0.1)
 
 #### Step 12: Testing & Launch (Days 27–30)
-- [ ] Playwright E2E tests for complete booking flow
+- [x] Isolated PostgreSQL reservation/concurrency tests and browser confirmation scenarios
+- [x] Browser checkout API -> signed simulated payment -> isolated database -> confirmation
+- [ ] Hosted Stripe test-mode card entry and live provider configuration verification
 - [ ] Mobile responsiveness testing across devices
 - [ ] Accessibility audit (WCAG 2.1 AA checklist)
 - [ ] Stripe test mode → live mode switch
@@ -322,9 +327,9 @@ Maps directly to the data models defined in the architecture document (Section 3
 - [ ] Guest review filtering by property
 - [ ] Add-to-calendar buttons on confirmation page
 - [ ] "Why Book Direct?" comparison component (price savings vs OTAs)
-- [ ] Basic admin dashboard (bookings list, calendar view)
+- [ ] Basic admin dashboard — partial: bookings/property management exists; calendar view remains to verify
 - [ ] Automated email sequences (pre-arrival, post-checkout review request)
-- [ ] Dynamic pricing support (seasonal rates, weekend premiums, min-night rules)
+- [ ] Dynamic pricing — partial: nightly rates and safe PriceLabs sync exist; min-night enforcement is increment 2
 - [ ] Google Vacation Rentals feed
 - [ ] Two-way calendar sync (write-back to OTAs on direct booking)
 - [ ] Basic guest CRM

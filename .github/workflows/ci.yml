@@ -45,3 +45,6 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Reservation integration tests (isolated PostgreSQL)
+        run: pnpm test:booking

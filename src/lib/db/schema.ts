@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, varchar, integer, numeric, boolean, uuid, date, pgEnum, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, varchar, integer, numeric, boolean, uuid, date, pgEnum, primaryKey, uniqueIndex, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -71,7 +71,7 @@ export const availability = pgTable('availability', {
   source: bookingSourceEnum('source').default('direct').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [unique('availability_property_id_date_key').on(t.propertyId, t.date)]);
 
 // Property iCal Feeds Table (import from Airbnb / VRBO / etc.)
 export const propertyIcalFeeds = pgTable('property_ical_feeds', {
@@ -156,7 +156,9 @@ export const bookings = pgTable('bookings', {
   checkOutTimeOverride: varchar('check_out_time_override', { length: 5 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [uniqueIndex('bookings_payment_intent_unique').on(t.paymentIntentId)]);
+// The non-overlapping stay exclusion constraint is defined in
+// supabase/migrations/20261029120000_reservation_integrity.sql (not expressible here).
 
 // Relations
 export const propertiesRelations = relations(properties, ({ many }) => ({
