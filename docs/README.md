@@ -11,8 +11,8 @@ remediations.
 
 - [`security/SECURITY_FIXES_PASS_1.md`](security/SECURITY_FIXES_PASS_1.md) — First-pass critical fixes (admin auth bypass, Stripe PII leak, timing-safe bearer tokens, dev error echo).
 - [`security/SECURITY_FIXES_PASS_2.md`](security/SECURITY_FIXES_PASS_2.md) — Second-pass hardening (Zod schemas, rate limiting, magic-byte file validation, open-redirect protection).
-- [`security/SECURITY_AUDIT_PASS_3.md`](security/SECURITY_AUDIT_PASS_3.md) — Third audit findings (phone-derived door codes, quote endpoint hardening, hono advisories).
-- [`security/SECURITY_FIXES_PASS_3.md`](security/SECURITY_FIXES_PASS_3.md) — Third-pass fixes applied.
+- [`security/SECURITY_AUDIT_PASS_3.md`](security/SECURITY_AUDIT_PASS_3.md) — Third audit findings (iCal SSRF, confirmation-code leak, Supabase error leakage, unbounded feed fetch).
+- [`security/SECURITY_FIXES_PASS_3.md`](security/SECURITY_FIXES_PASS_3.md) — Third-pass fixes applied (#13, #14, #16, #17). Unlike Passes 1 and 2, this is a record of work already done, not a task document. #18 is deferred by design — see its §4.
 
 ## Features
 
@@ -21,11 +21,24 @@ an executable task document with find/replace blocks.
 
 - [`features/SEAM_PHONE_CODE_FEATURE.md`](features/SEAM_PHONE_CODE_FEATURE.md) — Original Seam smart-lock integration with per-reservation time overrides. (Note: phone-derived codes were later removed in Pass 3.)
 - [`features/PHOTO_COMPRESSION_FIX.md`](features/PHOTO_COMPRESSION_FIX.md) — Client-side image compression for admin photo uploads.
-- [`features/VITEST_SETUP.md`](features/VITEST_SETUP.md) — Vitest test runner foundation.
+- [`features/VITEST_SETUP.md`](features/VITEST_SETUP.md) — Vitest test runner foundation. **Executed.** `pnpm test` runs the suite. Note the doc has drifted from the repo in three places (its `package.json` FIND block, its expected vitest major, and its test count); see the executing commit for details.
 
 ## Deployment
 
-- [`deployment/CLOUDFLARE_DEPLOYMENT.md`](deployment/CLOUDFLARE_DEPLOYMENT.md) — Parallel Cloudflare Pages deployment guide on the `deployment/cloudflare` branch (kept separate from the Vercel production deployment on `main`).
+Production runs on Vercel, deployed from `main` via the Git
+integration.
+
+The iCal sync cron is configured in `vercel.json` to run **once daily
+at 03:00 UTC**. `plan-cc.md` §4 Step 8 specifies every 15 minutes; the
+daily cadence is a deliberate, accepted deviation (Vercel's Hobby plan
+allows one cron invocation per day). The tradeoff is that an OTA
+booking can take up to 24 hours to be reflected in direct-booking
+availability. Revisit if the plan is upgraded.
+
+> A parallel Cloudflare Pages deployment was planned — a
+> `deployment/cloudflare` branch and a `deployment/CLOUDFLARE_DEPLOYMENT.md`
+> guide. Neither exists in this repository. The link to that guide was
+> removed from this index rather than left dangling.
 
 ## How these docs are used
 

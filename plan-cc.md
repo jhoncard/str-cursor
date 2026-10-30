@@ -272,7 +272,10 @@ Maps directly to the data models defined in the architecture document (Section 3
 
 #### Step 8: iCal Availability Sync (Days 20–22)
 - [ ] iCal feed parser for Airbnb, VRBO, Booking.com calendars
-- [ ] Vercel Cron job running every 15 minutes
+- [ ] ~~Vercel Cron job running every 15 minutes~~ — **superseded.** Ships as
+      once daily at 03:00 UTC (`vercel.json`), matching the Hobby plan's
+      one-invocation-per-day limit. Accepted tradeoff: an OTA booking may take
+      up to 24h to appear in direct-booking availability. Revisit on plan upgrade.
 - [ ] Availability table updates (mark dates as booked/blocked per source)
 - [ ] Booking widget respects synced availability (blocked dates shown as unavailable)
 
